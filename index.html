@@ -1,0 +1,2526 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Cyber Navigation</title>
+    
+    <!-- Подключение Telegram WebApp (defer для скорости) -->
+    <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
+    
+    <!-- Подключение Firebase (ВЕРСИЯ 9.22.0) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-color: #00f2ff;
+            --neon-pink: #ff007a;
+            --neon-green: #39ff14;
+            --neon-yellow: #ffea00;
+        }
+
+        /* TASK 4: SYSTEM GESTURES ADAPTATION */
+        html, body {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        @media (max-width: 768px) {
+            html, body {
+                overscroll-behavior: none !important;
+                touch-action: pan-y !important;
+            }
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #050505;
+            color: white;
+            margin: 0;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        input, textarea, select {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
+        }
+
+        .upload-progress { display: none; }
+
+        .bg-glow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: radial-gradient(circle at 20% 30%, #1a1033 0%, #050505 50%);
+            pointer-events: none;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: 0.3;
+            animation: float 15s infinite alternate ease-in-out;
+            will-change: transform;
+            transform: translateZ(0);
+        }
+
+        .orb-1 { width: 300px; height: 300px; background: var(--neon-color); top: -80px; right: -40px; }
+        .orb-2 { width: 250px; height: 250px; background: var(--neon-pink); bottom: -60px; left: -40px; animation-delay: -3s; }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(30px, 50px) scale(1.1); }
+        }
+
+        .status-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #444;
+            transition: all 0.5s ease;
+        }
+
+        .status-dot.online {
+            background: var(--neon-green);
+            box-shadow: 0 0 10px var(--neon-green), 0 0 20px var(--neon-green);
+            animation: pulse-green 2s infinite;
+        }
+
+        .status-dot.offline {
+            background: #ff4d4d;
+            animation: pulse-gray 2s infinite;
+        }
+
+        @keyframes pulse-green {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes pulse-gray { 0% { opacity: 0.5; } }
+
+        /* SKELETON LOADER */
+        .skeleton {
+            background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+            background-size: 200% 100%;
+            animation: skeleton-loading 1.5s infinite;
+            border-radius: 12px;
+        }
+        @keyframes skeleton-loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        .page {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            height: 100%;
+            max-width: 600px;
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease;
+            overflow-y: auto;
+            overscroll-behavior: none;
+            padding: calc(24px + env(safe-area-inset-top)) 20px calc(40px + env(safe-area-inset-bottom));
+            -webkit-overflow-scrolling: touch;
+            display: flex;
+            flex-direction: column;
+            will-change: transform, opacity;
+            content-visibility: auto;
+            touch-action: pan-y;
+            
+            box-shadow: 0 0 40px rgba(0,0,0,0.6);
+            border-left: 1px solid rgba(255,255,255,0.1);
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .page::-webkit-scrollbar { width: 0px; }
+
+        .hidden-left { transform: translateX(-150%); opacity: 0; pointer-events: none; }
+        .hidden-right { transform: translateX(50%); opacity: 0; pointer-events: none; }
+        .hidden-bottom { transform: translateY(100%); opacity: 0; pointer-events: none; }
+        
+        .active { transform: translateX(-50%); opacity: 1; pointer-events: all; }
+        .active-modal { transform: translateY(0); opacity: 1; pointer-events: all; }
+
+        /* --- FIX FOR ADMIN PAGE CENTERING --- */
+        #admin-page.active-modal {
+            transform: translate(-50%, 0);
+        }
+        #admin-page.hidden-bottom {
+            transform: translate(-50%, 100%);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 22px;
+            transition: transform 0.2s, background 0.2s;
+            position: relative;
+            transform: translateZ(0);
+        }
+
+        .glass-card:active {
+            transform: scale(0.98);
+            border-color: rgba(0, 242, 255, 0.5);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .admin-card {
+            background: rgba(10, 10, 15, 0.9);
+            border: 1px solid rgba(0, 242, 255, 0.15);
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .admin-section-title {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--neon-color);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .admin-section-title::after {
+            content: ''; height: 1px; flex: 1; background: linear-gradient(90deg, rgba(0, 242, 255, 0.3), transparent);
+        }
+
+        .guide-item-admin {
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 2px solid var(--neon-pink);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+            position: relative;
+            transition: background-color 0.3s;
+        }
+
+        .admin-input, .admin-textarea {
+            width: 100%;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            padding: 10px 12px;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        .admin-select {
+            width: 100%;
+            background-color: rgba(0, 0, 0, 0.5) !important;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            color: #eee !important;
+            border-radius: 10px !important;
+            padding: 10px 12px;
+            outline: none;
+            margin-bottom: 8px;
+            font-size: 13px;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 12px;
+        }
+        .admin-select option {
+            background-color: #111;
+            color: white;
+        }
+
+        .admin-textarea { resize: vertical; min-height: 60px; }
+        .admin-label { font-size: 10px; color: #777; margin-bottom: 4px; margin-left: 4px; display: block; text-transform: uppercase; }
+
+        /* ИСПРАВЛЕНИЕ: Центрирование иконок в админке (Task 2) */
+        .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }
+        
+        /* FIX FOR SHIFTING ISSUE: Added box-sizing and explicit sizing */
+        .icon-picker-btn {
+            aspect-ratio: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; transition: all 0.2s;
+            position: relative; overflow: hidden;
+            box-sizing: border-box !important;
+            transform: translateZ(0); /* Prevent sub-pixel jitter */
+        }
+        .icon-picker-btn.active { 
+            border-color: var(--neon-color); 
+            background: rgba(0, 242, 255, 0.2); 
+            box-shadow: 0 0 10px rgba(0, 242, 255, 0.3);
+            margin: 0 !important; /* Ensure no margin shift */
+            transform: none !important; /* Prevent scaling shift */
+        }
+        .icon-picker-btn svg { width: 18px; height: 18px; position: relative; z-index: 2; display: block; margin: 0 auto; }
+
+        .color-row { display: flex; gap: 10px; margin-bottom: 12px; }
+        .color-picker-btn { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; transition: transform 0.2s; }
+        .color-picker-btn.active { transform: scale(1.2); border-color: white; }
+
+        .btn-delete-icon { color: rgba(255, 77, 77, 0.6); padding: 4px; }
+        .btn-add-cyber {
+            background: rgba(0, 242, 255, 0.05); color: var(--neon-color); border: 1px dashed rgba(0, 242, 255, 0.4);
+            border-radius: 12px; padding: 12px; width: 100%; font-size: 13px; font-weight: 600;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+
+        .btn-save-cyber {
+            background: rgba(6, 182, 212, 0.2);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(6, 182, 212, 0.5);
+            color: #67e8f9;
+            font-weight: 700;
+            padding: 14px; 
+            border-radius: 16px; 
+            width: 100%; 
+            text-transform: uppercase; 
+            transition: all 0.2s;
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.1);
+            margin: 0; 
+        }
+        .btn-save-cyber:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(1); }
+        .btn-save-cyber:active {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: scale(0.98);
+            box-shadow: none;
+        }
+
+        .review-card .btn-save-cyber { 
+            margin-top: 12px !important; 
+        }
+
+        .btn-edit-list {
+            background: rgba(255, 0, 122, 0.1); color: var(--neon-pink); border: 1px solid rgba(255, 0, 122, 0.3);
+            border-radius: 10px; padding: 8px; width: 100%; font-size: 12px; margin-top: 5px;
+        }
+
+        .btn-glass-more {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 99px;
+            padding: 10px 24px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: 20px auto 40px auto;
+            display: block;
+            transition: all 0.3s ease;
+            width: fit-content;
+        }
+        .btn-glass-more:active {
+            background: rgba(0, 242, 255, 0.1);
+            border-color: rgba(0, 242, 255, 0.3);
+            color: #00f2ff;
+            transform: scale(0.96);
+        }
+        .btn-glass-more:disabled { opacity: 0.5; }
+        
+        .btn-glass-card {
+            background: rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            transition: all 0.3s;
+            box-shadow: 0 0 15px rgba(0,242,255,0.3); 
+        }
+        .btn-glass-card:active, .btn-glass-card:hover {
+            background: rgba(20, 20, 20, 0.8);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0,242,255,0.6); 
+        }
+
+        .icon-box {
+            width: 54px; height: 54px; background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+            border-radius: 16px; display: flex; align-items: center; justify-content: center;
+            box-shadow: 4px 4px 12px rgba(0,0,0,0.3); margin-right: 18px; flex-shrink: 0;
+        }
+        .icon-box svg { width: 26px; height: 26px; }
+
+        .title-gradient { background: linear-gradient(135deg, #ffffff 0%, #a1a1a1 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        /* ИСПРАВЛЕНИЕ: КАТЕГОРИИ (Task 1: padding-left: 16px) */
+        .category-scroll-container { 
+            display: flex; 
+            gap: 10px; /* Равномерный отступ */
+            overflow-x: auto; 
+            padding-bottom: 8px; 
+            margin-bottom: 12px; 
+            scrollbar-width: none;
+            width: 100%;
+            padding-left: 16px; /* ИЗМЕНЕНО с 0 на 16px */
+            -webkit-overflow-scrolling: touch;
+        }
+        .category-scroll-container::-webkit-scrollbar { display: none; }
+        
+        /* FIX FOR SHIFTING ISSUE: Added box-sizing, frozen margins and disabled transform on active */
+        .category-chip {
+            white-space: nowrap; padding: 6px 16px; border-radius: 999px; font-size: 12px; font-weight: 600;
+            cursor: pointer; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.05); backdrop-filter: blur(8px); color: #ccc;
+            box-sizing: border-box !important;
+            transform: translateZ(0); /* Prevent jitter */
+        }
+        .category-chip.active {
+            background: rgba(0, 242, 255, 0.15); color: var(--neon-color);
+            border-color: rgba(0, 242, 255, 0.4); box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+            margin: 0 !important; /* Ensure no margin shift */
+            transform: none !important; /* Ensure no scaling shift */
+        }
+
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; padding-bottom: 80px; }
+        .gallery-list { display: flex; flex-direction: column; gap: 6px; padding-bottom: 80px; }
+        .list-view-container { display: flex; flex-direction: column; gap: 16px; padding-bottom: 80px; }
+
+        .gallery-item {
+            aspect-ratio: 3/4; border-radius: 16px; overflow: hidden; position: relative;
+            border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: transform 0.2s; background: #111;
+        }
+        .gallery-item:active { transform: scale(0.96); }
+
+        .gallery-img, .product-image, .list-item-img { 
+            width: 100%; height: 100%; object-fit: cover; will-change: opacity; 
+            object-position: top !important; 
+        }
+
+        .img-placeholder {
+            background-color: #1a1a1a;
+            transition: opacity 0.3s;
+        }
+        
+        .gallery-overlay {
+            position: absolute; bottom: 0; left: 0; right: 0; 
+            background: linear-gradient(to top, rgba(0,0,0,0.95), transparent);
+            padding: 12px; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: flex-end; 
+            height: 60%;
+            align-items: flex-start;
+        }
+
+        #gallery-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 5, 5, 0.98);
+            backdrop-filter: blur(15px); z-index: 200; display: flex; flex-direction: column;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        #gallery-modal.active-modal { opacity: 1; pointer-events: all; }
+        .gallery-modal-img-container {
+            width: 100%; height: 55vh; position: relative; background: #000;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .gallery-modal-img { width: 100%; height: 100%; object-fit: contain; }
+        .gallery-modal-content {
+            flex-grow: 1; background: linear-gradient(to bottom, rgba(20, 20, 25, 1), rgba(10, 10, 15, 1));
+            border-top: 1px solid rgba(255,255,255,0.1); padding: 24px 20px 100px 20px;
+            display: flex; flex-direction: column; border-top-left-radius: 24px; border-top-right-radius: 24px;
+            margin-top: -24px; position: relative; z-index: 10; overflow-y: auto;
+            overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch;
+        }
+        .quote-block {
+            border-left: 3px solid var(--neon-pink); padding-left: 16px; margin-bottom: 16px;
+            font-style: italic; color: #ccc; font-size: 13px; line-height: 1.6; white-space: pre-wrap;
+        }
+        
+        .btn-copy {
+            position: fixed; bottom: 30px; left: 20px; right: 20px;
+            background: rgba(219, 39, 119, 0.6);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border: 1px solid rgb(244, 114, 182);
+            color: white; 
+            padding: 14px; 
+            border-radius: 16px; 
+            font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;
+            box-shadow: 0 0 15px rgba(236, 72, 153, 0.5); 
+            z-index: 210; transition: transform 0.1s, box-shadow 0.3s;
+        }
+        .btn-copy:active { 
+            transform: scale(0.96); 
+            background: rgba(236, 72, 153, 0.3);
+            border-color: rgba(236, 72, 153, 0.6);
+        }
+        
+        .magic-btn {
+            background: linear-gradient(135deg, #7b2ff7, #2f88f7); color: white; font-size: 11px;
+            padding: 4px 8px; border-radius: 6px; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px;
+        }
+        .magic-btn:disabled { opacity: 0.6; cursor: wait; }
+
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: var(--neon-color); border-radius: 50%;
+            animation: spin 1s linear infinite; position: absolute; z-index: 5;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        .review-card {
+            background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 16px; margin-bottom: 12px; position: relative;
+        }
+        .review-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .review-name { font-weight: 600; color: var(--neon-color); font-size: 14px; }
+        .review-date { font-size: 10px; color: #888; }
+        .review-text { font-size: 13px; line-height: 1.4; color: #ddd; word-wrap: break-word; }
+        .stars { color: var(--neon-yellow); font-size: 12px; letter-spacing: 2px; }
+
+        .btn-write-review {
+            background: rgba(219, 39, 119, 0.6);
+            backdrop-filter: blur(12px); 
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgb(244, 114, 182);
+            color: white; 
+            font-weight: 700;
+            padding: 14px; 
+            border-radius: 16px; 
+            width: 100%; 
+            text-align: center; 
+            margin-bottom: 20px;
+            box-shadow: 0 0 15px rgba(236, 72, 153, 0.5); 
+            display: flex; justify-content: center; align-items: center; gap: 8px;
+            transition: all 0.3s;
+        }
+        .btn-write-review:active {
+            background: rgba(236, 72, 153, 0.3);
+            transform: scale(0.98);
+        }
+
+        #review-write-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 5, 8, 0.95);
+            backdrop-filter: blur(10px); z-index: 300; display: flex; flex-direction: column;
+            justify-content: center; padding: 24px; opacity: 0; pointer-events: none; transition: all 0.3s;
+        }
+        #review-write-modal.active-modal { opacity: 1; pointer-events: all; }
+        .star-rating-input { display: flex; flex-direction: row-reverse; justify-content: center; gap: 8px; margin: 20px 0; }
+        .star-rating-input input { display: none; }
+        .star-rating-input label { font-size: 32px; color: #444; cursor: pointer; transition: color 0.2s; }
+        .star-rating-input input:checked ~ label, .star-rating-input label:hover, .star-rating-input label:hover ~ label {
+            color: var(--neon-yellow); text-shadow: 0 0 10px var(--neon-yellow);
+        }
+
+        /* --- PRODUCT CARD STYLES --- */
+        .product-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 22px;
+            overflow: hidden; position: relative; 
+            display: flex; flex-direction: column;
+            height: 100%;
+            transition: transform 0.2s;
+        }
+        .product-card:active { transform: scale(0.97); }
+
+        .product-badge {
+            position: absolute; top: 8px; right: 8px; padding: 4px 8px;
+            border-radius: 6px; font-size: 10px; font-weight: 700; text-transform: uppercase;
+            backdrop-filter: blur(8px); z-index: 2; border: 1px solid rgba(255,255,255,0.1);
+            min-width: 80px;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        .badge-sold { background: rgba(0, 0, 0, 0.7); color: #ccc; }
+        .badge-wait { background: rgba(255, 140, 0, 0.3); color: orange; border-color: orange; }
+        .badge-order { background: rgba(0, 242, 255, 0.2); color: var(--neon-color); border-color: var(--neon-color); }
+        
+        .product-info { 
+            padding: 12px; 
+            flex-grow: 1;
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+            justify-content: space-between; 
+        }
+        
+        .product-title {
+            font-weight: 600; font-size: 13px; line-height: 1.3; margin-bottom: 4px; color: white;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+            height: 34px;
+            flex-shrink: 0; 
+        }
+        
+        .product-desc-short {
+            font-size: 11px; color: #888; line-height: 1.4;
+            display: block;
+            height: 45px;
+            overflow-y: auto;
+            margin-top: 8px;
+            padding-right: 2px;
+            flex-shrink: 0;
+            margin-bottom: 8px;
+        }
+        .product-desc-short::-webkit-scrollbar { width: 2px; }
+        .product-desc-short::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+
+        .price-block { 
+            display: flex; align-items: baseline; gap: 6px;
+            flex-shrink: 0;
+            margin-top: 0;
+        }
+        .price-new { color: var(--neon-color); font-weight: 700; font-size: 15px; }
+        .price-old { color: #555; font-size: 11px; text-decoration: line-through; }
+
+        .product-slider { 
+            display: flex; 
+            overflow-x: auto; 
+            scroll-snap-type: x mandatory; 
+            scrollbar-width: none; 
+            gap: 10px; 
+            padding-bottom: 10px;
+            justify-content: flex-start;
+            margin-top: 20px; /* Added spacing for inside content */
+        }
+        .product-slider::-webkit-scrollbar { display: none; }
+
+        /* --- UPDATED PRODUCT MODAL CSS (STRICTLY FROM EXAMPLE LOGIC + DARK THEME) --- */
+        #product-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 250; 
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s;
+            display: flex; align-items: flex-end; justify-content: center;
+        }
+        #product-modal.active-modal { opacity: 1; pointer-events: all; }
+
+        #product-overlay {
+            position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.8);
+            z-index: 240; transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .product-modal-panel {
+            position: absolute; bottom: 0; left: 0; right: 0; /* FIX TO BOTTOM */
+            z-index: 250; width: 100%; max-width: 600px;
+            /* Добавлено центрирование для десктопов (Task 2) */
+            margin: 0 auto;
+            background: #111; /* Dark theme background */
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-top-left-radius: 32px;
+            border-top-right-radius: 32px;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.6);
+            display: flex; flex-direction: column;
+            height: 40vh; /* INITIAL HEIGHT 40% AS REQUESTED */
+            transition: height 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            touch-action: none; 
+        }
+
+        /* Drag Handle from Example */
+        .handle-container {
+            width: 100%; padding: 12px 0; cursor: grab;
+            display: flex; justify-content: center; flex-shrink: 0;
+        }
+        .handle-container:active { cursor: grabbing; }
+        .handle {
+            width: 40px; height: 4px;
+            background-color: #cbd5e1; /* From example */
+            border-radius: 2px;
+            opacity: 0.3; /* Adjusted for dark theme */
+        }
+
+        .sheet-content {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 0 24px 120px 24px; /* Bottom padding for fixed footer */
+        }
+
+        /* Bottom Sheet Adaptation */
+        .sheet-footer {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            background: #111; /* Dark theme */
+            padding: 16px;
+            border-top: none; /* REMOVED BORDER AS REQUESTED */
+            z-index: 260;
+        }
+
+        .product-slide { 
+            flex: 0 0 100%; 
+            scroll-snap-align: center; 
+            overflow: hidden; 
+            background: #000; 
+            border-radius: 12px;
+            aspect-ratio: 1/1; /* Square images inside content */
+        }
+        .product-slide img { width: 100%; height: 100%; object-fit: cover; }
+
+
+        .admin-status-indicator {
+            width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-left: 8px;
+            cursor: pointer; transition: transform 0.2s;
+        }
+        .admin-status-indicator:active { transform: scale(0.8); }
+        .admin-status-ok { background: #39ff14; box-shadow: 0 0 5px #39ff14; }
+        .admin-status-bad { background: #ff4d4d; box-shadow: 0 0 5px #ff4d4d; }
+
+        /* --- NEW UI ELEMENTS --- */
+
+        .list-item {
+            display: flex;
+            flex-direction: row; 
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            overflow: hidden;
+            height: auto; 
+            position: relative;
+            transition: transform 0.2s;
+            padding: 8px !important;
+            gap: 12px; 
+        }
+        .list-item:active { transform: scale(0.98); }
+        
+        .list-img-container {
+            width: 100px;
+            height: 100px; 
+            flex-shrink: 0;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .list-item-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top !important; 
+        }
+        
+        .list-item-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .list-item-title {
+            font-weight: 700; font-size: 14px; color: white; line-height: 1.2;
+            margin-bottom: 2px;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        }
+        
+        .list-item-desc {
+            font-size: 10px; color: #9ca3af; line-height: 1.3;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+            margin-top: 2px;
+        }
+
+        #admin-sticky-bar {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0;
+            right: 0;
+            z-index: 99999;
+            background: rgba(10, 10, 10, 0.75); 
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-top: 1px solid rgba(0, 242, 255, 0.2); 
+            box-shadow: 0 -5px 20px rgba(0, 242, 255, 0.05); 
+            padding: 14px 18px; 
+            padding-bottom: calc(14px + env(safe-area-inset-bottom));
+            display: none;
+            gap: 8px;
+            align-items: center;
+            /* Добавлено ограничение ширины для десктопов (Task 2) */
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .admin-bar-btn {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.03);
+            border: 0.5px solid rgba(255, 255, 255, 0.2); 
+            color: #ccc;
+            font-size: 12px; 
+            font-weight: 600;
+            text-transform: uppercase; 
+            letter-spacing: 0.05em; 
+            padding: 8px 0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s;
+            cursor: pointer;
+            height: 32px; 
+            white-space: nowrap;
+        }
+        .admin-bar-btn:active { transform: scale(0.96); background: rgba(255,255,255,0.1); }
+        
+        .admin-bar-btn.primary {
+            background: rgba(0, 242, 255, 0.08);
+            border-color: rgba(0, 242, 255, 0.4);
+            color: var(--neon-color);
+            flex: 2; 
+        }
+        
+        .admin-bar-btn.accent {
+            background: rgba(255, 0, 122, 0.08);
+            border-color: rgba(255, 0, 122, 0.4);
+            color: var(--neon-pink);
+        }
+
+        .admin-bar-btn.back {
+            background: rgba(255, 0, 122, 0.15);
+            border-color: rgba(255, 0, 122, 0.5);
+            color: #ff007a;
+        }
+
+        .admin-bar-btn.close {
+            flex: 0 0 32px; 
+            border-color: rgba(255, 77, 77, 0.3);
+            color: #ff4d4d;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="bg-glow">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+    </div>
+
+    <div class="status-container">
+        <div id="status-dot" class="status-dot offline"></div>
+    </div>
+
+    <div id="main-page" class="page active">
+        <header class="mb-10 mt-4 text-center">
+            <h1 id="nav-header" class="text-3xl font-bold title-gradient tracking-tight select-none cursor-pointer">Навигация</h1>
+            <p id="nav-subheader" class="text-gray-500 text-sm mt-2">Твой проводник по контенту</p>
+        </header>
+
+        <div id="main-menu-container" class="grid gap-4">
+            <div class="skeleton h-20 w-full"></div>
+            <div class="skeleton h-20 w-full"></div>
+            <div class="skeleton h-20 w-full"></div>
+        </div>
+
+        <footer class="mt-auto pt-16 pb-8 text-center">
+            <p class="text-[10px] text-gray-600 opacity-50">Developed by Elena Sotnikova</p>
+        </footer>
+    </div>
+
+    <div id="sub-page" class="page hidden-right">
+        <header class="mb-6 mt-4 text-center relative">
+             <button onclick="hideSubPage()" class="absolute left-0 top-1 text-2xl opacity-50 p-2">‹</button>
+            <h1 id="sub-page-title" class="text-2xl font-bold title-gradient tracking-tight text-blue-400">Заголовок</h1>
+            <p id="sub-page-subtitle" class="text-gray-500 text-xs mt-1">Описание раздела</p>
+        </header>
+        <div id="sub-page-container"></div>
+        <div class="mt-auto h-20"></div> 
+    </div>
+
+    <div id="gallery-modal">
+        <button onclick="closeGalleryModal()" class="absolute top-4 right-4 z-50 w-10 h-10 bg-black/50 rounded-full text-white flex items-center justify-center backdrop-blur-md">✕</button>
+        <div class="gallery-modal-img-container" id="modal-img-wrapper"></div>
+        <div class="gallery-modal-content">
+            <div class="modal-text-wrapper">
+                <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-2 font-bold flex-shrink-0">PROMPT TEXT</div>
+                <div class="quote-block" id="modal-prompt-text"></div>
+            </div>
+            <button onclick="copyCurrentPrompt()" class="btn-copy">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                Копировать промпт ✨
+            </button>
+        </div>
+    </div>
+
+    <!-- UPDATED PRODUCT MODAL HTML (STRICTLY LOGIC FROM EXAMPLE + YOUR ORDER) -->
+    <div id="product-modal">
+        <div id="product-overlay" onclick="closeProductModal()"></div>
+        
+        <!-- NEW: Background Image Container (Visible when sheet is 40%) -->
+        <div id="product-image-wrapper" class="absolute top-0 left-0 w-full h-[65vh] z-[245]" onclick="closeProductModal()">
+           <img id="product-modal-bg-img" src="" class="w-full h-full object-cover transition-opacity duration-500">
+        </div>
+
+        <!-- Bottom Sheet Panel -->
+        <div id="product-sheet-panel" class="product-modal-panel">
+            
+            <!-- Drag Handle -->
+            <div id="product-drag-handle" class="handle-container">
+                <div class="handle"></div>
+            </div>
+
+            <!-- Content Area: Title -> Price -> Full Desc -> Image (At bottom) -->
+            <div class="sheet-content custom-scrollbar" id="product-sheet-content">
+                
+                <!-- 1. Title -->
+                <h2 id="product-modal-title" class="text-2xl font-bold text-white mb-2 leading-tight text-left"></h2>
+                
+                <!-- 2. Price -->
+                <div class="flex items-baseline gap-3 text-left mb-4">
+                    <span id="product-modal-price" class="text-2xl text-[#00f2ff] font-bold tracking-tight"></span>
+                    <span id="product-modal-old-price" class="text-sm text-gray-500 line-through"></span>
+                </div>
+                
+                <!-- 3. Full Description -->
+                <p id="product-modal-desc" class="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap font-light pb-4 text-left"></p>
+
+                <!-- Slider removed as requested - Image is now background -->
+                <!-- <div class="product-slider" id="product-modal-slider"></div> -->
+                <!-- <div id="product-modal-hint" class="text-center text-[10px] text-white/50 mb-4">Листай фото →</div> -->
+
+            </div>
+
+            <!-- Footer (Static Button) -->
+            <div class="sheet-footer">
+                <button id="product-buy-btn" class="btn-save-cyber">
+                    Купить
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="review-write-modal">
+        <div class="text-center mb-6">
+            <h2 class="text-2xl font-bold text-white mb-2">Ваш отзыв</h2>
+            <p class="text-gray-400 text-xs">Поделитесь впечатлениями</p>
+        </div>
+        <label class="admin-label">Ваше имя</label>
+        <input type="text" id="review-name-input" class="admin-input bg-white/10" placeholder="Имя">
+        <div class="star-rating-input">
+            <input type="radio" id="star5" name="rating" value="5"><label for="star5">★</label>
+            <input type="radio" id="star4" name="rating" value="4"><label for="star4">★</label>
+            <input type="radio" id="star3" name="rating" value="3"><label for="star3">★</label>
+            <input type="radio" id="star2" name="rating" value="2"><label for="star2">★</label>
+            <input type="radio" id="star1" name="rating" value="1"><label for="star1">★</label>
+        </div>
+        <textarea id="review-text-input" class="admin-textarea bg-white/10 mb-6" placeholder="Напишите что-нибудь приятное..."></textarea>
+        <button onclick="submitReview()" class="btn-write-review">Отправить ✨</button>
+        <button onclick="closeReviewModal()" class="text-gray-500 text-sm mt-4">Отмена</button>
+    </div>
+
+    <div id="admin-page" class="page hidden-bottom" style="background: rgba(5,5,8,0.98); z-index: 50; padding-bottom: 0;">
+        <div class="pt-8 px-2">
+            <h2 class="text-2xl font-bold text-white tracking-tight mb-4">
+                Terminal
+                <span id="admin-net-status" class="admin-status-indicator admin-status-bad" onclick="forceReconnect()" title="Нажми для реконнекта"></span>
+            </h2>
+        </div>
+
+        <div id="admin-content-main" class="z-10 pb-24">
+            <div class="admin-card">
+                <div class="admin-section-title">Заголовки Главной</div>
+                <div class="mb-2">
+                    <label class="admin-label">Главный заголовок</label>
+                    <input type="text" id="admin-header-title" class="admin-input">
+                </div>
+                <div>
+                    <label class="admin-label">Подзаголовок</label>
+                    <input type="text" id="admin-header-subtitle" class="admin-input">
+                </div>
+            </div>
+
+            <div class="admin-card">
+                <div class="admin-section-title">Структура меню</div>
+                <div id="admin-main-menu-list" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <div id="admin-content-sublist" class="hidden z-10 pb-24">
+            <div class="admin-card">
+                <div class="admin-section-title text-pink-500" id="admin-sublist-title">Редактор списка</div>
+                <div id="admin-sublist-items" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <div id="admin-content-moderation" class="hidden z-10">
+             <div class="admin-section-title text-yellow-400">Модерация отзывов</div>
+             <div id="moderation-list" class="space-y-4 pb-32"></div>
+        </div>
+        
+        <div id="save-status" class="text-center text-xs text-cyan-400 mt-4 opacity-0 transition-opacity font-mono absolute bottom-20 left-0 right-0 pointer-events-none">DB_SYNC_COMPLETE</div>
+    </div>
+
+    <div id="admin-sticky-bar" class="hidden"></div>
+
+    <canvas id="compress-canvas" style="display: none;"></canvas>
+
+    <script>
+        let isParsing = false;
+        let tg;
+        let availableCategories = new Set();
+        const ADMIN_ID = 758556732;
+        const BTN_DETAILS_CLASS = "bg-[rgba(0,242,255,0.1)] border border-[#00f2ff] text-[#00f2ff] text-[10px] uppercase px-3 py-1 rounded shadow-[0_0_10px_rgba(0,242,255,0.2)] hover:bg-[rgba(0,242,255,0.2)] transition-all";
+
+        document.addEventListener('contextmenu', event => event.preventDefault());
+
+        const ICON_LIBRARY = [
+            { id: 'folder', svg: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>' },
+            { id: 'star', svg: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>' },
+            { id: 'bolt', svg: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>' },
+            { id: 'message', svg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>' },
+            { id: 'book', svg: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>' },
+            { id: 'zap', svg: '<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>' },
+            { id: 'instagram', svg: '<rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>' },
+            { id: 'youtube', svg: '<path d="M2.5 17C2.5 17 2.5 7 2.5 7C2.5 5.34315 3.84315 4 5.5 4H18.5C20.1569 4 21.5 5.34315 21.5 7V17C21.5 18.6569 20.1569 20 18.5 20H5.5C3.84315 20 2.5 18.6569 2.5 17ZM10 8V16L16 12L10 8Z" fill="currentColor"/>' }, 
+            { id: 'telegram', svg: '<path d="M21.198 2.433a2.242 2.242 0 0 0-1.022.215l-16.5 6.75c-.92.376-.91 1.055-.16 1.43l4.33 1.353 10.033-6.326c.475-.29.911-.134.555.182l-8.13 7.34-.316 4.478c.438 0 .633-.2.88-.44l2.12-2.058 4.408 3.254c.438-.448 1.4.217 1.6-.758l2.9-13.68c.273-1.08-.41-1.574-1.108-1.23z"></path>' },
+            { id: 'globe', svg: '<path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10z"/>' },
+            { id: 'gift', svg: '<polyline points="20 12 20 22 4 22 4 12"></polyline><rect x="2" y="7" width="20" height="5"></rect><line x1="12" y1="22" x2="12" y2="7"></line><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"></path><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"></path>' },
+            { id: 'shopping-bag', svg: '<path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path>' } 
+        ];
+
+        const COLOR_LIBRARY = [
+            { id: 'text-blue-400', hex: '#00f2ff' },
+            { id: 'text-pink-500', hex: '#ff007a' },
+            { id: 'text-green-400', hex: '#39ff14' },
+            { id: 'text-yellow-400', hex: '#ffea00' },
+            { id: 'text-white', hex: '#ffffff' },
+            { id: 'text-purple', hex: '#6a0dad' },
+            { id: 'text-deep-blue', hex: '#00008b' },
+            { id: 'text-orange', hex: '#ff8c00' }
+        ];
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDLtj9Y2ZiN-n_etkPvrYL3-btEzjAbLiA",
+  authDomain: "mypro-d4c18.firebaseapp.com",
+  projectId: "mypro-d4c18",
+  storageBucket: "mypro-d4c18.firebasestorage.app",
+  messagingSenderId: "256095439690",
+  appId: "1:256095439690:web:7f1419a66ef2ffe23e8fb3"
+};
+        
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        
+        auth.signInAnonymously()
+          .then(() => {
+            console.log("Авторизация успешна!");
+            initAppLogic();
+          })
+          .catch((error) => {
+            console.error("Ошибка входа:", error);
+            alert("База данных недоступна. Проверь интернет!");
+          });
+
+        const configDocId = "shop_client_name_v1"; 
+        let appData = { headerTitle: "Навигация", headerSubtitle: "Твой проводник", mainMenu: [] };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initTelegram();
+        });
+
+        function initTelegram() {
+            if (window.Telegram && window.Telegram.WebApp) {
+                tg = window.Telegram.WebApp;
+                tg.expand();
+                tg.enableClosingConfirmation(); 
+                if (tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+                tg.ready();
+                tg.BackButton.onClick(() => {
+                    const galleryModal = document.getElementById('gallery-modal');
+                    const productModal = document.getElementById('product-modal');
+                    if (galleryModal.classList.contains('active-modal')) closeGalleryModal();
+                    else if (productModal.classList.contains('active-modal')) closeProductModal();
+                    else hideSubPage();
+                });
+            } else {
+                tg = {
+                    initDataUnsafe: { user: { id: 0, first_name: "BrowserUser" } },
+                    expand: () => {}, ready: () => {}, disableVerticalSwipes: () => {}, enableClosingConfirmation: () => {},
+                    HapticFeedback: { impactOccurred: () => {}, notificationOccurred: () => {}, selectionChanged: () => {} },
+                    BackButton: { show: () => {}, hide: () => {}, onClick: () => {} },
+                    openLink: (url) => window.open(url, '_blank'),
+                    openTelegramLink: (url) => window.open(url, '_blank'),
+                    showAlert: (msg) => alert(msg),
+                    showPopup: (params, callback) => { if(callback) callback('ok'); }
+                };
+            }
+        }
+
+        function initAppLogic() {
+            const cachedData = localStorage.getItem('cyber_nav_cache_' + configDocId);
+            if (cachedData) {
+                try {
+                    appData = JSON.parse(cachedData);
+                    if(appData.mainMenu) appData.mainMenu.sort((a,b) => (a.orderIndex || a.order || 0) - (b.orderIndex || b.order || 0));
+                    updateUI();
+                } catch(e) { console.error("Cache error", e); }
+            }
+            
+            db.collection('configs').doc(configDocId).onSnapshot(async (doc) => {
+                const fromCache = doc.metadata.fromCache;
+                const netStatus = document.getElementById('admin-net-status');
+                if(netStatus) {
+                    netStatus.className = `admin-status-indicator ${fromCache ? 'admin-status-bad' : 'admin-status-ok'}`;
+                }
+
+                if (doc.exists) {
+                    appData = doc.data();
+                    if(appData.mainMenu) appData.mainMenu.sort((a,b) => (a.orderIndex || a.order || 0) - (b.orderIndex || b.order || 0));
+                    await loadHeavyContent();
+                    
+                    localStorage.setItem('cyber_nav_cache_' + configDocId, JSON.stringify(appData));
+                    updateUI();
+                    setOnlineStatus(!fromCache);
+                }
+            });
+        }
+        
+        async function loadHeavyContent() {
+            if (!appData.mainMenu) return;
+            
+            const promises = appData.mainMenu.map(async (btn) => {
+                // TASK 3: ADD 'services' TO LOADING LOGIC
+                if (['gallery', 'products', 'services'].includes(btn.mode) && btn.id) {
+                    const colName = btn.mode === 'gallery' ? 'prompts' : (btn.mode === 'services' ? 'services' : 'products');
+                    try {
+                        let snap;
+                        try {
+                            snap = await db.collection(colName)
+                                .where('parentId', '==', btn.id)
+                                .orderBy('order', 'asc')
+                                .limit(10)
+                                .get();
+                        } catch (e) {
+                             console.log("Sort query failed, retrying without sort", e);
+                        }
+
+                        if (!snap || snap.empty) {
+                             snap = await db.collection(colName)
+                                .where('parentId', '==', btn.id)
+                                .limit(10)
+                                .get();
+                        }
+
+                        const items = [];
+                        snap.forEach(d => {
+                            let item = d.data();
+                            item.id = d.id;
+                            items.push(item);
+                        });
+                        
+                        btn.items = items;
+                        btn.lastVisible = snap.docs[snap.docs.length - 1];
+                        btn.hasMore = snap.docs.length === 10;
+
+                    } catch (e) {
+                        console.error(`Error loading ${colName} for ${btn.id}`, e);
+                        btn.items = [];
+                    }
+                }
+            });
+            
+            await Promise.all(promises);
+        }
+
+        async function loadMoreItems(btn) {
+            if (!btn.lastVisible || !btn.hasMore) return;
+            
+            const loadBtn = document.getElementById('btn-load-more');
+            if (loadBtn) {
+                loadBtn.disabled = true;
+                loadBtn.textContent = 'Загрузка...';
+            }
+
+            // TASK 3: ADD 'services' TO LOAD MORE LOGIC
+            const colName = btn.mode === 'gallery' ? 'prompts' : (btn.mode === 'services' ? 'services' : 'products');
+            
+            try {
+                let snap;
+                try {
+                    snap = await db.collection(colName)
+                        .where('parentId', '==', btn.id)
+                        .orderBy('order', 'asc')
+                        .startAfter(btn.lastVisible)
+                        .limit(10)
+                        .get();
+                } catch(e) {
+                    snap = await db.collection(colName)
+                        .where('parentId', '==', btn.id)
+                        .startAfter(btn.lastVisible)
+                        .limit(10)
+                        .get();
+                }
+
+                const newItems = [];
+                snap.forEach(d => {
+                    let item = d.data();
+                    item.id = d.id;
+                    newItems.push(item);
+                });
+
+                if (newItems.length > 0) {
+                    btn.items = [...btn.items, ...newItems];
+                    btn.lastVisible = snap.docs[snap.docs.length - 1];
+                    btn.hasMore = snap.docs.length === 10;
+                    
+                    const container = document.querySelector(btn.viewType === 'list' ? '.list-view-container' : '.gallery-grid');
+                    
+                    if (btn.mode === 'gallery') {
+                        renderGalleryItems(newItems, container, btn.viewType, true);
+                    } else if (btn.mode === 'products' || btn.mode === 'services') {
+                        renderProductItems(newItems, container, btn.viewType, true);
+                    }
+                } else {
+                    btn.hasMore = false;
+                }
+
+                if (loadBtn) {
+                    if (!btn.hasMore) loadBtn.style.display = 'none';
+                    else {
+                        loadBtn.disabled = false;
+                        loadBtn.textContent = 'Показать еще';
+                    }
+                }
+                
+            } catch (e) {
+                console.error("Error loading more items", e);
+                if (loadBtn) {
+                    loadBtn.disabled = false;
+                    loadBtn.textContent = 'Ошибка. Повторить?';
+                }
+            }
+        }
+        
+        async function forceReconnect() {
+             const dot = document.getElementById('admin-net-status');
+             dot.style.transform = "scale(1.5)";
+             if(confirm("🔄 Перезагрузить соединение с базой?")) {
+                 window.location.reload(); 
+             } else {
+                 dot.style.transform = "scale(1)";
+             }
+        }
+
+        function setOnlineStatus(online) {
+            const dot = document.getElementById('status-dot');
+            if (dot) dot.className = `status-dot ${online ? 'online' : 'offline'}`;
+        }
+
+        function updateUI() {
+            document.getElementById('nav-header').textContent = appData.headerTitle;
+            document.getElementById('nav-subheader').textContent = appData.headerSubtitle;
+            renderMainMenu();
+        }
+
+        function renderMainMenu() {
+            const container = document.getElementById('main-menu-container');
+            container.innerHTML = '';
+            
+            if (!appData.mainMenu) return; 
+
+            appData.mainMenu.forEach((btn) => {
+                const isComplexMode = ['list','gallery','reviews','products','services'].includes(btn.mode);
+                const btnEl = document.createElement('div');
+                btnEl.className = 'glass-card p-4 flex items-center cursor-pointer';
+                btnEl.onclick = () => isComplexMode ? openSubPage(btn) : handleLink(btn.directLink);
+                const iconSvg = ICON_LIBRARY.find(i => i.id === btn.iconId)?.svg || ICON_LIBRARY[2].svg;
+                const colorHex = COLOR_LIBRARY.find(c => c.id === btn.iconColor)?.hex || 'white';
+                
+                btnEl.innerHTML = `
+                    <div class="icon-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: ${colorHex}">
+                            ${iconSvg}
+                        </svg>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="font-semibold text-white">${btn.title}</h3>
+                        <p class="text-gray-400 text-xs text-white/60">${btn.subtitle}</p>
+                    </div>
+                    <div class="opacity-30 text-xl">›</div>
+                `;
+                container.appendChild(btnEl);
+            });
+        }
+
+        // TASK 4 FIX: IMPROVED SWIPE LOGIC TO PREVENT SCROLL CONFLICTS
+        let touchStartX = 0;
+        let touchStartY = 0; // Capture Y to detect scrolling
+        const subPage = document.getElementById('sub-page');
+        
+        subPage.addEventListener('touchstart', e => { 
+            touchStartX = e.changedTouches[0].screenX; 
+            touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+        
+        subPage.addEventListener('touchend', e => {
+            const deltaX = e.changedTouches[0].screenX - touchStartX;
+            const deltaY = e.changedTouches[0].screenY - touchStartY;
+            
+            // Only trigger back if horizontal swipe is significant AND vertical movement is small
+            // This prevents triggering "back" when scrolling down quickly
+            if (deltaX > 50 && Math.abs(deltaY) < 50) { 
+                hideSubPage();
+            }
+        }, { passive: true });
+
+        function escapeHtml(text) {
+            if (!text) return "";
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function loadReviews(container) {
+            const reviewsList = document.createElement('div');
+            reviewsList.innerHTML = '<div class="text-center mt-10"><div class="spinner relative left-1/2 -ml-5"></div></div>';
+            container.appendChild(reviewsList);
+            db.collection('reviews').where('approved', '==', true).get().then(snap => {
+                reviewsList.innerHTML = '';
+                const docs = [];
+                snap.forEach(d => docs.push(d.data()));
+                
+                docs.sort((a, b) => {
+                    const dateA = a.date || '';
+                    const dateB = b.date || '';
+                    if (dateA > dateB) return -1;
+                    if (dateA < dateB) return 1;
+                    return 0;
+                });
+
+                if(docs.length === 0) {
+                    reviewsList.innerHTML = '<div class="text-center text-gray-500 text-sm mt-4">Отзывов пока нет.</div>';
+                    return;
+                }
+                docs.forEach(r => {
+                    const card = document.createElement('div');
+                    card.className = 'review-card animate-pulse-enter';
+                    const stars = '★'.repeat(r.rating);
+                    card.innerHTML = `<div class="review-header"><span class="review-name">${escapeHtml(r.name)}</span><span class="stars">${stars}</span></div><div class="review-text">${escapeHtml(r.text)}</div><div class="review-date mt-2 text-right opacity-50 text-[9px]">${new Date(r.date).toLocaleDateString()}</div>`;
+                    reviewsList.appendChild(card);
+                });
+            });
+        }
+
+        function openSubPage(btnData) {
+            tg.HapticFeedback.impactOccurred('medium');
+            document.getElementById('sub-page-title').textContent = btnData.title;
+            document.getElementById('sub-page-subtitle').textContent = btnData.subtitle;
+            const container = document.getElementById('sub-page-container');
+            container.innerHTML = '';
+            
+            const viewType = btnData.viewType || 'grid';
+
+            // TASK 3: Added 'services' check
+            if (btnData.mode === 'gallery' || btnData.mode === 'products' || btnData.mode === 'services') {
+                const allItems = btnData.items || [];
+                const categories = ['Все', ...new Set(allItems.flatMap(i => i.categories || (i.category ? [i.category] : [])).filter(Boolean))];
+                
+                const gridContainer = document.createElement('div');
+                gridContainer.className = btnData.mode === 'gallery' 
+                    ? (viewType === 'list' ? 'gallery-list animate-pulse-enter' : 'gallery-grid animate-pulse-enter')
+                    : (viewType === 'list' ? 'list-view-container pb-24' : 'gallery-grid pb-24');
+
+                if (categories.length > 1) {
+                    const filterContainer = document.createElement('div');
+                    filterContainer.className = 'category-scroll-container';
+                    categories.forEach(cat => {
+                        const chip = document.createElement('div');
+                        chip.className = `category-chip ${cat === 'Все' ? 'active' : ''}`;
+                        chip.textContent = cat;
+                        chip.onclick = (e) => {
+                            document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
+                            e.target.classList.add('active');
+                            const filtered = cat === 'Все' 
+                                ? allItems 
+                                : allItems.filter(i => (i.categories && i.categories.includes(cat)) || i.category === cat);
+                            
+                            gridContainer.innerHTML = '';
+                            if (btnData.mode === 'gallery') {
+                                renderGalleryItems(filtered, gridContainer, viewType);
+                            } else {
+                                renderProductItems(filtered, gridContainer, viewType);
+                            }
+                            tg.HapticFeedback.selectionChanged();
+                        };
+                        filterContainer.appendChild(chip);
+                    });
+                    container.appendChild(filterContainer);
+                }
+                container.appendChild(gridContainer);
+                
+                if (btnData.mode === 'gallery') renderGalleryItems(allItems, gridContainer, viewType);
+                else renderProductItems(allItems, gridContainer, viewType);
+                
+                if (btnData.hasMore) {
+                    const loadBtn = document.createElement('button');
+                    loadBtn.id = 'btn-load-more';
+                    loadBtn.className = 'btn-glass-more';
+                    loadBtn.textContent = 'Показать еще';
+                    loadBtn.onclick = () => loadMoreItems(btnData);
+                    container.appendChild(loadBtn);
+                }
+            } 
+            else if (btnData.mode === 'reviews') {
+                container.className = 'flex flex-col pb-20';
+                const btn = document.createElement('button');
+                btn.className = 'btn-write-review';
+                btn.innerHTML = '✨ Написать отзыв';
+                btn.onclick = openReviewModal;
+                container.appendChild(btn);
+                loadReviews(container);
+            }
+            else {
+                container.className = 'grid gap-4'; 
+                (btnData.items || []).forEach(item => {
+                    const itemEl = document.createElement('div');
+                    itemEl.className = 'glass-card p-4 flex items-center cursor-pointer';
+                    itemEl.onclick = () => handleLink(item.link);
+                    itemEl.innerHTML = `<div class="flex-1 text-white font-medium pl-2">${item.title}</div><div class="opacity-30 text-xl">›</div>`;
+                    container.appendChild(itemEl);
+                });
+            }
+            document.getElementById('main-page').classList.replace('active', 'hidden-left');
+            subPage.classList.replace('hidden-right', 'active');
+            tg.BackButton.show();
+        }
+
+        function renderGalleryItems(items, container, viewType, append = false) {
+            if (!append) container.innerHTML = '';
+            
+            let index = 0;
+            const CHUNK_SIZE = 10;
+
+            function renderChunk() {
+                const limit = Math.min(index + CHUNK_SIZE, items.length);
+                for (let i = index; i < limit; i++) {
+                    const item = items[i];
+                    const imgUrl = (item.images && item.images.length > 0) ? item.images[0] : item.imageUrl;
+                    
+                    item.image = imgUrl;
+                    if (!item.description) item.description = item.prompt;
+
+                    const div = document.createElement('div');
+                    div.onclick = () => openGalleryModal(imgUrl, item.prompt);
+
+                    const imgTag = `<img src="${item.image || ''}" loading="lazy" style="aspect-ratio: 1/1; width: 100%; height: 100%; object-fit: cover;" class="${viewType === 'list' ? 'rounded-md' : 'transition-transform duration-500 group-hover:scale-110'} img-placeholder" onload="this.classList.remove('img-placeholder')" onerror="this.src='https://via.placeholder.com/300?text=Error'">`;
+
+                    if (viewType === 'list') {
+                        div.className = 'bg-black/40 p-3 rounded-lg border border-gray-800 flex flex-row gap-3 relative';
+                        div.innerHTML = `
+                            <div class="w-24 h-24 flex-shrink-0">
+                                ${imgTag}
+                            </div>
+                            <div class="flex-1 flex flex-col justify-between">
+                                <div>
+                                    <div class="text-white font-bold text-sm leading-tight mb-1 text-left">${item.title || ''}</div>
+                                    <div class="text-gray-400 text-[10px] leading-snug line-clamp-3 text-left">${item.description || ''}</div>
+                                </div>
+                                <div class="flex justify-end mt-2">
+                                    <button class="btn-glass-card">
+                                        ПОДРОБНЕЕ
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        div.className = 'relative aspect-[3/4] overflow-hidden rounded-xl group cursor-pointer border border-white/10';
+                        div.innerHTML = `
+                            ${imgTag}
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-3">
+                                <div class="text-white font-bold text-[10px] leading-tight mb-2 text-left line-clamp-2">${item.title || ''}</div>
+                                <div class="flex justify-start">
+                                    <button class="btn-glass-card">
+                                        ПОДРОБНЕЕ
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    container.appendChild(div);
+                }
+                
+                index = limit;
+                if (index < items.length) {
+                    requestAnimationFrame(renderChunk);
+                }
+            }
+            
+            requestAnimationFrame(renderChunk);
+        }
+        
+        const STATUS_MAP = {
+            'sold': { label: 'Продано', class: 'badge-sold' },
+            'wait': { label: 'Ожидается', class: 'badge-wait' },
+            'order': { label: 'Под заказ', class: 'badge-order' },
+            'noseats': { label: 'Мест нет', class: 'badge-sold' },
+            'soon': { label: 'Скоро старт', class: 'badge-wait' },
+            'open': { label: 'Запись открыта', class: 'badge-order' },
+            'empty': { label: 'Пусто', class: 'badge-sold' }
+        };
+        
+        const BADGE_COLORS = {
+            'red': { bg: '#ff4d4d', color: '#fff', border: '#ff4d4d' },
+            'green': { bg: '#39ff14', color: '#000', border: '#39ff14' },
+            'blue': { bg: '#0066ff', color: '#fff', border: '#0066ff' },
+            'white': { bg: '#ffffff', color: '#000', border: '#ffffff' },
+            'yellow': { bg: '#ffea00', color: '#000', border: '#ffea00' },
+            'cyan': { bg: '#00f2ff', color: '#000', border: '#00f2ff' }
+        };
+
+        function renderProductItems(items, container, viewType, append = false) {
+            if (!append) container.innerHTML = '';
+            
+            let index = 0;
+            const CHUNK_SIZE = 10;
+
+            function renderChunk() {
+                const limit = Math.min(index + CHUNK_SIZE, items.length);
+                for (let i = index; i < limit; i++) {
+                    const item = items[i];
+                    const mainImg = (item.images && item.images.length > 0) ? item.images[0] : item.imageUrl;
+                    const statusData = STATUS_MAP[item.status];
+                    
+                    let badgeHtml = '';
+                    if (statusData) {
+                        let styleAttr = '';
+                        if (item.badgeColor && BADGE_COLORS[item.badgeColor]) {
+                            const c = BADGE_COLORS[item.badgeColor];
+                            styleAttr = `style="background: ${c.bg}; color: ${c.color}; border-color: ${c.border};"`;
+                        } else {
+                            styleAttr = `class="product-badge ${statusData.class}"`;
+                        }
+                        if (styleAttr.startsWith('style')) styleAttr = `class="product-badge" ` + styleAttr;
+                        badgeHtml = `<div ${styleAttr}>${statusData.label}</div>`;
+                    }
+                    
+                    const imgTag = `<img src="${mainImg || 'https://via.placeholder.com/400'}" loading="lazy" style="aspect-ratio: 1/1; width: 100%; height: 100%; object-fit: cover;" class="${viewType === 'list' ? 'rounded-md' : ''} img-placeholder" onload="this.classList.remove('img-placeholder')" onerror="this.src='https://via.placeholder.com/300?text=Error'">`;
+
+                    if (viewType === 'list') {
+                        const card = document.createElement('div');
+                        card.className = 'bg-black/40 p-3 rounded-lg border border-gray-800 flex flex-row gap-3 relative cursor-pointer'; 
+                        card.onclick = () => openProductModal(item);
+                        
+                        const listBadge = badgeHtml ? badgeHtml.replace('product-badge', 'product-badge scale-75 origin-top-right absolute top-2 right-2') : '';
+
+                        let priceHtmlList = `<span class="text-[var(--neon-color)] font-mono text-xs">${escapeHtml(item.price || '')}</span>`;
+                        if(item.oldPrice) priceHtmlList += ` <span class="text-gray-500 text-[10px] line-through ml-2">${escapeHtml(item.oldPrice)}</span>`;
+
+                        card.innerHTML = `
+                            ${listBadge}
+                            <div class="w-24 h-24 flex-shrink-0">
+                                ${imgTag}
+                            </div>
+                            
+                            <div class="flex-1 flex flex-col justify-between">
+                                <div>
+                                    <div class="text-white font-bold text-sm leading-tight mb-0">${escapeHtml(item.title)}</div>
+                                    <div class="mb-1">${priceHtmlList}</div>
+                                    <div class="text-gray-400 text-[10px] leading-snug line-clamp-3">${escapeHtml(item.description || '')}</div>
+                                </div>
+                                
+                                <div class="flex justify-end mt-2">
+                                    <button class="btn-glass-card">
+                                        ПОДРОБНЕЕ
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        container.appendChild(card);
+
+                    } else {
+                        const card = document.createElement('div');
+                        card.className = 'product-card cursor-pointer flex flex-col h-full relative overflow-hidden bg-[#111] rounded-xl border border-white/10'; 
+                        card.onclick = () => openProductModal(item);
+                        let priceHtml = `<span class="text-[var(--neon-color)] font-bold text-sm">${item.price || ''}</span>`;
+                        if(item.oldPrice) priceHtml += ` <span class="text-gray-500 text-[10px] line-through ml-1">${item.oldPrice}</span>`;
+                        
+                        card.innerHTML = `
+                            ${badgeHtml}
+                            <div class="relative w-full aspect-square overflow-hidden bg-[#111]">
+                                ${imgTag}
+                            </div>
+                            
+                            <div class="p-3 flex flex-col flex-1">
+                                <div class="mb-1">
+                                    <div class="text-white font-bold text-xs leading-tight text-left line-clamp-2 h-8 mb-0">${escapeHtml(item.title)}</div>
+                                    <div class="text-left -mt-1">${priceHtml}</div>
+                                </div>
+                                
+                                <div class="text-gray-400 text-[10px] line-clamp-3 leading-snug mb-3 text-left flex-1">
+                                    ${escapeHtml(item.description)}
+                                </div>
+                                <div class="mt-auto pt-1 flex justify-start">
+                                    <button class="btn-glass-card">
+                                        ПОДРОБНЕЕ
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        container.appendChild(card);
+                    }
+                }
+                
+                index = limit;
+                if (index < items.length) {
+                    requestAnimationFrame(renderChunk);
+                }
+            }
+            requestAnimationFrame(renderChunk);
+        }
+
+        const repairCache = new Set();
+        function tryRepairImage(imgEl) {
+            const tgLink = imgEl.getAttribute('data-tg-link');
+            if (!tgLink || repairCache.has(tgLink)) { imgEl.src = 'https://placehold.co/400x600/222/555?text=Expired+Link'; return; }
+            repairCache.add(tgLink);
+            imgEl.style.opacity = '0.5';
+            const embedUrl = tgLink + '?embed=1&mode=tme';
+            fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(embedUrl))
+                .then(res => res.json())
+                .then(data => {
+                    const doc = new DOMParser().parseFromString(data.contents, "text/html");
+                    const style = doc.querySelector('.tgme_widget_message_photo_wrap')?.getAttribute('style');
+                    const bgMatch = style?.match(/url\('?(.*?)'?\)/);
+                    if (bgMatch) { imgEl.src = bgMatch[1]; imgEl.style.opacity = '1'; }
+                    else throw new Error("No image");
+                })
+                .catch(() => { imgEl.src = 'https://placehold.co/400x600/222/555?text=Lost+Signal'; imgEl.style.opacity = '1'; });
+        }
+
+        function hideSubPage() {
+            subPage.classList.replace('active', 'hidden-right');
+            document.getElementById('main-page').classList.replace('hidden-left', 'active');
+            tg.BackButton.hide();
+        }
+
+        function handleLink(url) {
+            if (!url) return;
+            tg.HapticFeedback.impactOccurred('light');
+            if (url.includes('t.me/')) tg.openTelegramLink(url);
+            else tg.openLink(url, { try_instant_view: true });
+        }
+
+        function openReviewModal() {
+            const nameInput = document.getElementById('review-name-input');
+            const userFirstName = tg.initDataUnsafe?.user?.first_name || "Гость";
+            if(!nameInput.value) nameInput.value = userFirstName;
+            document.getElementById('review-write-modal').classList.add('active-modal');
+        }
+        function closeReviewModal() { document.getElementById('review-write-modal').classList.remove('active-modal'); }
+        function submitReview() {
+            const name = document.getElementById('review-name-input').value;
+            const text = document.getElementById('review-text-input').value;
+            const ratingEl = document.querySelector('input[name="rating"]:checked');
+            if(!ratingEl) return tg.showAlert("Поставьте оценку! ⭐");
+            if(!text) return tg.showAlert("Напишите хоть пару слов...");
+            
+            db.collection('reviews').add({
+                name: name, text: text, rating: parseInt(ratingEl.value),
+                approved: false, date: new Date().toISOString(), userId: tg.initDataUnsafe?.user?.id || 'anon'
+            }).then(() => {
+                closeReviewModal(); tg.showAlert("Ваш отзыв отправлен! ✨");
+                document.getElementById('review-text-input').value = '';
+            });
+        }
+
+        function openGalleryModal(imgUrl, promptText) {
+            tg.HapticFeedback.impactOccurred('medium');
+            const modal = document.getElementById('gallery-modal');
+            const wrapper = document.getElementById('modal-img-wrapper');
+            wrapper.innerHTML = '<div class="spinner"></div>';
+            const img = document.createElement('img');
+            img.src = imgUrl; img.className = "gallery-modal-img"; img.referrerPolicy = "no-referrer";
+            img.onload = () => { wrapper.innerHTML = ''; wrapper.appendChild(img); };
+            img.onerror = () => { wrapper.innerHTML = ''; img.src = 'https://placehold.co/400x600?text=Error'; wrapper.appendChild(img); };
+            document.getElementById('modal-prompt-text').textContent = promptText || "Нет промпта";
+            modal.classList.add('active-modal');
+        }
+        function closeGalleryModal() { document.getElementById('gallery-modal').classList.remove('active-modal'); }
+
+        function openProductModal(item) {
+            tg.HapticFeedback.impactOccurred('medium');
+            
+            // 1. Data Population
+            document.getElementById('product-modal-title').textContent = item.title;
+            document.getElementById('product-modal-desc').textContent = item.fullDescription || item.description;
+            document.getElementById('product-modal-price').textContent = item.price;
+            const oldPriceEl = document.getElementById('product-modal-old-price');
+            if (item.oldPrice) { oldPriceEl.textContent = item.oldPrice; oldPriceEl.style.display = 'inline'; }
+            else oldPriceEl.style.display = 'none';
+
+            // 2. Set Background Image (Instead of Slider)
+            const mainImg = (item.images && item.images.length > 0) ? item.images[0] : item.imageUrl;
+            document.getElementById('product-modal-bg-img').src = mainImg || 'https://via.placeholder.com/600x800';
+
+            // 3. Button Setup
+            const btn = document.getElementById('product-buy-btn');
+            btn.textContent = item.buttonText || "Купить";
+            btn.onclick = () => {
+                tg.HapticFeedback.notificationOccurred('success');
+                if (item.buttonLink) {
+                    const cleanLink = item.buttonLink.replace('https://t.me/', '').replace('@', '');
+                    const text = `Привет! Хочу заказать: ${item.title}`;
+                    tg.openTelegramLink(`https://t.me/${cleanLink}?text=${encodeURIComponent(text)}`);
+                } else tg.showAlert("Связь с продавцом не настроена");
+            };
+
+            // 4. LOGIC FROM YOUR EXAMPLE (Dragging) - UPDATED FOR 40% INITIAL
+            const sheet = document.getElementById('product-sheet-panel');
+            const dragHandle = document.getElementById('product-drag-handle');
+            let startY, startHeight;
+
+            // Initialize Height to 40vh (Folded state)
+            sheet.style.height = '40vh';
+
+            dragHandle.ontouchstart = (e) => {
+                startY = e.touches[0].pageY;
+                startHeight = sheet.offsetHeight;
+                sheet.style.transition = 'none';
+            };
+
+            dragHandle.ontouchmove = (e) => {
+                const delta = startY - e.touches[0].pageY;
+                const newHeight = startHeight + delta;
+                
+                // Allow drag from 0 to 95vh
+                if (newHeight > 50 && newHeight < window.innerHeight * 0.95) {
+                    sheet.style.height = `${newHeight}px`;
+                }
+            };
+
+            dragHandle.ontouchend = () => {
+                sheet.style.transition = 'height 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+                const currentHeight = sheet.offsetHeight;
+                const windowHeight = window.innerHeight;
+                
+                // Logic: 
+                // < 30% screen -> Close
+                // > 50% screen -> Snap to Full (85vh)
+                // Else -> Snap back to Folded (40vh)
+
+                if (currentHeight < windowHeight * 0.3) {
+                    closeProductModal();
+                } else if (currentHeight > windowHeight * 0.5) {
+                    sheet.style.height = '85vh';
+                } else {
+                    sheet.style.height = '40vh';
+                }
+            };
+
+            document.getElementById('product-modal').classList.add('active-modal');
+        }
+        function closeProductModal() { document.getElementById('product-modal').classList.remove('active-modal'); }
+
+        function copyCurrentPrompt() {
+            const text = document.getElementById('modal-prompt-text').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                tg.showAlert('Промпт скопирован!'); tg.HapticFeedback.notificationOccurred('success');
+            }).catch(() => tg.showAlert('Скопировано!'));
+        }
+
+        // --- ADMIN ---
+        let tapCount = 0;
+        document.getElementById('nav-header').addEventListener('click', () => {
+            tapCount++;
+            if (tapCount >= 5) {
+                if (tg.initDataUnsafe?.user?.id !== ADMIN_ID) return;
+                openAdmin(); tapCount = 0;
+            }
+            setTimeout(() => tapCount = 0, 1000);
+        });
+
+        let tempAppData = null;
+        let currentEditingIndex = null;
+
+        function openAdmin() {
+            tempAppData = JSON.parse(JSON.stringify(appData));
+            document.getElementById('admin-header-title').value = tempAppData.headerTitle;
+            document.getElementById('admin-header-subtitle').value = tempAppData.headerSubtitle;
+            renderAdminMainMenu();
+            document.getElementById('admin-page').classList.replace('hidden-bottom', 'active-modal');
+            document.getElementById('admin-content-main').classList.remove('hidden');
+            document.getElementById('admin-content-sublist').classList.add('hidden');
+            
+            const bar = document.getElementById('admin-sticky-bar');
+            bar.style.display = 'flex'; 
+            bar.innerHTML = `
+                <button onclick="openModeration()" class="admin-bar-btn accent">🛡️ Мод</button>
+                <button onclick="addNewMainMenuButton()" class="admin-bar-btn"><span>+</span> Блок</button>
+                <button onclick="saveAdminData()" id="btn-save-global" class="admin-bar-btn primary">💾 Сохранить</button>
+                <button onclick="closeAdmin()" class="admin-bar-btn close">✕</button>
+            `;
+        }
+
+        function renderAdminMainMenu() {
+            const list = document.getElementById('admin-main-menu-list');
+            list.innerHTML = '';
+            const total = tempAppData.mainMenu.length;
+            tempAppData.mainMenu.forEach((btn, idx) => {
+                const div = document.createElement('div');
+                div.className = "guide-item-admin";
+                
+                const upBtn = idx > 0 ? `<button onclick="moveMainMenuButton(${idx}, -1)" class="px-2 text-gray-500 hover:text-cyan-400 transition">▲</button>` : `<span class="px-2 opacity-0">▲</span>`;
+                const downBtn = idx < total - 1 ? `<button onclick="moveMainMenuButton(${idx}, 1)" class="px-2 text-gray-500 hover:text-cyan-400 transition">▼</button>` : `<span class="px-2 opacity-0">▼</span>`;
+
+                div.innerHTML = `
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="text-[10px] text-cyan-400">БЛОК ${idx+1}</span>
+                        <div class="flex items-center">
+                             ${upBtn}
+                             ${downBtn}
+                            <button onclick="removeMainMenuButton(${idx})" class="btn-delete-icon ml-2">✕</button>
+                        </div>
+                    </div>
+                    <label class="admin-label">Icon & Color</label>
+                    <div class="icon-grid" id="icon-grid-${idx}"></div>
+                    <div class="color-row" id="color-row-${idx}"></div>
+                    <input type="text" class="admin-input" value="${btn.title}" placeholder="Заголовок" onchange="tempAppData.mainMenu[${idx}].title=this.value">
+                    <input type="text" class="admin-input" value="${btn.subtitle}" placeholder="Подзаголовок" onchange="tempAppData.mainMenu[${idx}].subtitle=this.value">
+                    <label class="admin-label mt-2">Режим кнопки</label>
+                    <select class="admin-select" onchange="tempAppData.mainMenu[${idx}].mode=this.value; renderAdminMainMenu();">
+                        <option value="link" ${btn.mode==='link'?'selected':''}>Ссылка</option>
+                        <option value="list" ${btn.mode==='list'?'selected':''}>Список</option>
+                        <option value="gallery" ${btn.mode==='gallery'?'selected':''}>Галерея</option>
+                        <option value="products" ${btn.mode==='products'?'selected':''}>Витрина Товаров</option>
+                        <option value="services" ${btn.mode==='services'?'selected':''}>Услуги (Services)</option>
+                        <option value="reviews" ${btn.mode==='reviews'?'selected':''}>Отзывы</option>
+                    </select>
+
+                    ${ ['gallery', 'products', 'services'].includes(btn.mode) ? `
+                    <label class="admin-label mt-2">Вид отображения</label>
+                    <div class="flex gap-2 mb-2">
+                        <button onclick="tempAppData.mainMenu[${idx}].viewType='grid'; renderAdminMainMenu();" class="flex-1 py-2 rounded border ${!btn.viewType || btn.viewType==='grid' ? 'border-cyan-400 bg-cyan-400/10 text-cyan-400' : 'border-white/10 text-gray-500'}">⊞ Сетка</button>
+                        <button onclick="tempAppData.mainMenu[${idx}].viewType='list'; renderAdminMainMenu();" class="flex-1 py-2 rounded border ${btn.viewType==='list' ? 'border-cyan-400 bg-cyan-400/10 text-cyan-400' : 'border-white/10 text-gray-500'}">☰ Список</button>
+                    </div>
+                    ` : '' }
+
+                    ${btn.mode==='link' 
+                        ? `<input type="text" class="admin-input mt-2" value="${btn.directLink||''}" placeholder="URL" onchange="tempAppData.mainMenu[${idx}].directLink=this.value">`
+                        : (btn.mode === 'reviews' ? '' : `<button onclick="editSubList(${idx})" class="btn-edit-list">Редактировать контент</button>`)
+                    }
+                `;
+                list.appendChild(div);
+                renderIconPicker(idx);
+            });
+        }
+
+        function moveMainMenuButton(index, direction) {
+            const list = tempAppData.mainMenu;
+            const newIndex = index + direction;
+            if (newIndex >= 0 && newIndex < list.length) {
+                // EXPLICIT SWAP
+                const temp = list[index];
+                list[index] = list[newIndex];
+                list[newIndex] = temp;
+                
+                // Update order index immediately
+                list.forEach((btn, i) => btn.orderIndex = i);
+                
+                renderAdminMainMenu();
+            }
+        }
+
+        function renderIconPicker(idx) {
+            const grid = document.getElementById(`icon-grid-${idx}`);
+            ICON_LIBRARY.forEach(icon => {
+                const iBtn = document.createElement('button');
+                iBtn.className = `icon-picker-btn ${tempAppData.mainMenu[idx].iconId === icon.id ? 'active' : ''}`;
+                iBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${icon.svg}</svg>`;
+                iBtn.onclick = () => { tempAppData.mainMenu[idx].iconId = icon.id; renderAdminMainMenu(); };
+                grid.appendChild(iBtn);
+            });
+            const colorRow = document.getElementById(`color-row-${idx}`);
+            COLOR_LIBRARY.forEach(color => {
+                const cBtn = document.createElement('button');
+                cBtn.className = `color-picker-btn ${tempAppData.mainMenu[idx].iconColor === color.id ? 'active' : ''}`;
+                cBtn.style.backgroundColor = color.hex;
+                cBtn.onclick = () => { tempAppData.mainMenu[idx].iconColor = color.id; renderAdminMainMenu(); };
+                colorRow.appendChild(cBtn);
+            });
+        }
+
+        function addNewMainMenuButton() {
+            const maxOrder = tempAppData.mainMenu.reduce((max, btn) => Math.max(max, btn.orderIndex || 0), 0);
+            tempAppData.mainMenu.push({ 
+                id: Date.now().toString(), 
+                title: "Новая кнопка", 
+                subtitle: "Описание", 
+                iconId: "bolt", 
+                iconColor: "text-blue-400", 
+                mode: "link", 
+                items: [], 
+                viewType: 'grid',
+                orderIndex: maxOrder + 1 
+            });
+            renderAdminMainMenu();
+        }
+        function removeMainMenuButton(idx) { if(confirm('Удалить?')) { tempAppData.mainMenu.splice(idx, 1); renderAdminMainMenu(); } }
+
+        async function editSubList(idx) {
+            currentEditingIndex = idx;
+            document.getElementById('admin-content-main').classList.add('hidden');
+            document.getElementById('admin-content-sublist').classList.remove('hidden');
+            
+            const btn = tempAppData.mainMenu[idx];
+            document.getElementById('admin-sublist-title').textContent = btn.title;
+            
+            const bar = document.getElementById('admin-sticky-bar');
+            bar.innerHTML = `
+                <button onclick="backToMainAdmin()" class="admin-bar-btn back">‹ Назад</button>
+                <button onclick="addNewSubItem()" class="admin-bar-btn"><span>+</span> Элемент</button>
+                <button onclick="saveAdminData()" id="btn-save-sub" class="admin-bar-btn primary">💾 Сохранить</button>
+            `;
+            
+            // TASK 3: ADD 'services' TO SUB-LIST LOADING
+            if (['gallery', 'products', 'services'].includes(btn.mode) && btn.id) {
+                const listContainer = document.getElementById('admin-sublist-items');
+                listContainer.innerHTML = '<div class="spinner relative left-1/2 -ml-5 mt-10"></div><div class="text-center mt-16 text-xs text-gray-500">Загрузка полного списка...</div>';
+                
+                // --- FIX: EXPLICIT LOGIC FOR SERVICES ---
+                let colName = 'products'; // Default fallback
+                if (btn.mode === 'gallery') colName = 'prompts';
+                else if (btn.mode === 'services') colName = 'services'; // STRICTLY services
+                
+                try {
+                    let snap;
+                    // Modified Logic Here
+                    if (colName === 'services') {
+                         // TASK 1: GLOBAL FIX - LOAD ALL SERVICES
+                         snap = await db.collection('services')
+                            .orderBy('order', 'asc') // CHANGED FROM createdAt to order
+                            .limit(100)
+                            .get();
+                    } else {
+                        try {
+                            snap = await db.collection(colName)
+                                .where('parentId', '==', btn.id)
+                                .orderBy('order', 'asc') // CHANGED FROM createdAt to order
+                                .limit(100)
+                                .get();
+                        } catch (e) {
+                             console.warn("Sorting failed, loading unsorted items...");
+                             snap = await db.collection(colName)
+                                .where('parentId', '==', btn.id)
+                                .limit(100)
+                                .get();
+                        }
+                    }
+                    
+                    const fullItems = [];
+                    snap.forEach(d => {
+                        let item = d.data();
+                        item.id = d.id;
+                        fullItems.push(item);
+                    });
+                    
+                    tempAppData.mainMenu[idx].items = fullItems;
+                    
+                    availableCategories.clear();
+                    fullItems.forEach(item => {
+                        const cats = item.categories || (item.category ? [item.category] : []);
+                        cats.forEach(c => { if(c) availableCategories.add(c.trim()); });
+                    });
+                    
+                } catch(e) {
+                    console.error("Admin load error", e);
+                }
+            } else {
+                 // TASK 3 FIX: Ensure items array exists for simple lists like "My Services"
+                 if (!tempAppData.mainMenu[idx].items) {
+                     tempAppData.mainMenu[idx].items = [];
+                 }
+                 availableCategories.clear();
+                (btn.items || []).forEach(item => {
+                    const cats = item.categories || (item.category ? [item.category] : []);
+                    cats.forEach(c => { if(c) availableCategories.add(c.trim()); });
+                });
+            }
+
+            renderSubListItems();
+        }
+
+        function compressImage(file, callback) {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = event => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.getElementById('compress-canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    const MAX_SIDE = 400;
+                    
+                    let w = img.width, h = img.height;
+                    if (w > h) {
+                        if (w > MAX_SIDE) { h = Math.round(h * (MAX_SIDE / w)); w = MAX_SIDE; }
+                    } else {
+                        if (h > MAX_SIDE) { w = Math.round(w * (MAX_SIDE / h)); h = MAX_SIDE; }
+                    }
+                    canvas.width = w;
+                    canvas.height = h;
+                    ctx.drawImage(img, 0, 0, w, h);
+                    
+                    let quality = 0.7; 
+                    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    
+                    while (dataUrl.length > 50000 && quality > 0.1) {
+                        quality -= 0.1;
+                        dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    }
+                    
+                    callback(dataUrl);
+                };
+            };
+        }
+
+        function handleFileUpload(input, idx) {
+            const file = input.files[0]; 
+            if (!file) return;
+
+            const btnGlobal = document.getElementById('btn-save-global');
+            const btnSub = document.getElementById('btn-save-sub');
+            if(btnGlobal) { btnGlobal.disabled = true; btnGlobal.innerText = "⏳ Обработка..."; }
+            if(btnSub) { btnSub.disabled = true; btnSub.innerText = "⏳ Обработка..."; }
+
+            compressImage(file, (base64) => {
+                const mode = tempAppData.mainMenu[currentEditingIndex].mode;
+                const slot = input.dataset.slot;
+
+                if (mode === 'products' || mode === 'gallery' || mode === 'services') {
+                    if (!tempAppData.mainMenu[currentEditingIndex].items[idx].images) {
+                        const existingUrl = tempAppData.mainMenu[currentEditingIndex].items[idx].imageUrl || '';
+                        tempAppData.mainMenu[currentEditingIndex].items[idx].images = [existingUrl];
+                    }
+                    
+                    while(tempAppData.mainMenu[currentEditingIndex].items[idx].images.length <= slot) 
+                        tempAppData.mainMenu[currentEditingIndex].items[idx].images.push('');
+                    
+                    tempAppData.mainMenu[currentEditingIndex].items[idx].images[slot] = base64;
+                    
+                    if(mode === 'gallery' && slot == 0) 
+                        tempAppData.mainMenu[currentEditingIndex].items[idx].imageUrl = base64;
+                } else {
+                    tempAppData.mainMenu[currentEditingIndex].items[idx].imageUrl = base64;
+                }
+
+                input.parentElement.style.backgroundImage = `url('${base64}')`;
+
+                setTimeout(() => {
+                    if(btnGlobal) { btnGlobal.disabled = false; btnGlobal.innerText = "💾 Сохранить"; }
+                    if(btnSub) { btnSub.disabled = false; btnSub.innerText = "💾 Сохранить"; renderSubListItems(); }
+                }, 1000);
+            });
+        }
+        
+        function removeImage(itemIdx, imgSlot) {
+            if(confirm('Удалить фото?')) {
+                const item = tempAppData.mainMenu[currentEditingIndex].items[itemIdx];
+                if(item.images && item.images[imgSlot]) {
+                     item.images[imgSlot] = '';
+                     if(tempAppData.mainMenu[currentEditingIndex].mode === 'gallery' && imgSlot === 0) {
+                         item.imageUrl = '';
+                     }
+                } else if (imgSlot === 0) {
+                    item.imageUrl = '';
+                }
+                renderSubListItems();
+            }
+        }
+
+        function addNewGlobalCategory() {
+            const input = document.getElementById('new-cat-input'); const val = input.value.trim();
+            if(val) { availableCategories.add(val); input.value = ''; renderSubListItems(); }
+        }
+        
+function deleteGlobalCategory(cat) {
+            if(confirm(`Удалить категорию "${cat}"?`)) {
+                availableCategories.delete(cat);
+                tempAppData.mainMenu[currentEditingIndex].items.forEach(item => {
+                    if (item.categories) {
+                        item.categories = item.categories.filter(c => c !== cat);
+                    }
+                });
+                renderSubListItems();
+            }
+        }
+        async function deleteSubItem(idx) {
+            if (!confirm("⚠️ Точно удалить? Восстановить нельзя!")) return;
+            
+            const btn = tempAppData.mainMenu[currentEditingIndex];
+            const item = btn.items[idx];
+            
+            // TASK 3: ADD 'services' TO DELETE LOGIC
+            if (item.id && ['gallery', 'products', 'services'].includes(btn.mode)) {
+                 const colName = btn.mode === 'gallery' ? 'prompts' : (btn.mode === 'services' ? 'services' : 'products');
+                 const btnSub = document.getElementById('btn-save-sub');
+                 if(btnSub) { btnSub.disabled = true; btnSub.innerText = "⏳ Удаление из БД..."; }
+                 
+                 try {
+                     // TASK 5 FIX: STICK TO HARD DELETE
+                     await db.collection(colName).doc(item.id).delete();
+                     console.log(`Deleted doc ${item.id} from ${colName}`);
+                 } catch (e) {
+                     console.error("Delete failed:", e);
+                     alert("Ошибка удаления из БД: " + e.message);
+                     if(btnSub) { btnSub.disabled = false; btnSub.innerText = "💾 Сохранить"; }
+                     return;
+                 }
+                 
+                 if(btnSub) { btnSub.disabled = false; btnSub.innerText = "💾 Сохранить"; }
+            }
+            
+            btn.items.splice(idx, 1);
+            renderSubListItems();
+        }
+
+        function toggleCategory(itemIdx, cat, el) {
+            const item = tempAppData.mainMenu[currentEditingIndex].items[itemIdx];
+            if (!item.categories) item.categories = [];
+            
+            if (item.categories.includes(cat)) {
+                item.categories = item.categories.filter(c => c !== cat);
+                el.classList.remove('active');
+            } else {
+                item.categories.push(cat);
+                el.classList.add('active');
+            }
+            const btn = document.getElementById(`cat-btn-${itemIdx}`);
+            if(btn) btn.innerHTML = `<span>Выбрано: ${item.categories.length}</span><span class="text-xs">▼</span>`;
+        }
+        
+        function toggleCatDropdown(id) {
+            const el = document.getElementById(id);
+            if(el.classList.contains('hidden')) el.classList.remove('hidden');
+            else el.classList.add('hidden');
+        }
+
+        function renderSubListItems() {
+            const list = document.getElementById('admin-sublist-items'); list.innerHTML = '';
+            const parentBtn = tempAppData.mainMenu[currentEditingIndex];
+            const isProd = parentBtn.mode === 'products' || parentBtn.mode === 'services'; // Modified to include services
+            const isGallery = parentBtn.mode === 'gallery';
+            const items = parentBtn.items || [];
+            
+            if(isGallery || isProd) {
+                let catListHtml = '<div class="flex flex-wrap gap-2 mt-3">';
+                availableCategories.forEach(cat => {
+                    catListHtml += `<div class="category-chip flex items-center gap-1" style="margin:0 !important; padding: 4px 10px;">${cat} <button onclick="deleteGlobalCategory('${cat}')" class="text-red-500 font-bold ml-1 text-lg leading-none hover:text-red-400">×</button></div>`;
+                });
+                catListHtml += '</div>';
+
+                const catCreator = document.createElement('div');
+                catCreator.className = 'admin-card mb-4';
+                catCreator.innerHTML = `<div class="admin-section-title text-green-400">Управление категориями</div><div class="flex gap-2"><input type="text" id="new-cat-input" class="admin-input" placeholder="Новая категория..."><button onclick="addNewGlobalCategory()" class="btn-add-cyber" style="width: auto;">+</button></div>${catListHtml}`;
+                list.appendChild(catCreator);
+            }
+            items.forEach((item, idx) => {
+                const total = items.length;
+                const upBtn = idx > 0 ? `<button onclick="moveSubListItem(${idx}, -1)" class="text-xs text-gray-500 hover:text-white p-1">▲</button>` : `<span class="p-1 w-4 block"></span>`;
+                const downBtn = idx < total - 1 ? `<button onclick="moveSubListItem(${idx}, 1)" class="text-xs text-gray-500 hover:text-white p-1">▼</button>` : `<span class="p-1 w-4 block"></span>`;
+
+                const div = document.createElement('div'); div.className = "guide-item-admin";
+                
+                const deleteButton = `<button onclick="deleteSubItem(${idx})" class="text-red-500 px-2 font-bold">🗑️</button>`;
+
+                if (isProd || isGallery) {
+                    const images = item.images || (item.imageUrl ? [item.imageUrl] : []);
+                    let previews = '';
+                    for(let i=0; i<3; i++) {
+                        const bg = images[i] ? `background-image: url('${images[i]}')` : '';
+                        const deleteBtn = images[i] ? `<button onclick="removeImage(${idx}, ${i})" class="absolute top-0 right-0 bg-red-500/80 text-white w-5 h-5 flex items-center justify-center rounded-bl-lg hover:bg-red-600 transition z-20">×</button>` : '';
+                        previews += `<div class="relative w-16 h-16 bg-black/40 border border-white/20 rounded flex items-center justify-center overflow-hidden bg-cover bg-center" style="${bg}">${deleteBtn}<input type="file" data-slot="${i}" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer" onchange="handleFileUpload(this, ${idx})">${!images[i]?'<span class="text-xs opacity-50">+</span>':''}</div>`;
+                    }
+
+                    const currentCats = item.categories || (item.category ? [item.category] : []);
+                    
+                    let catCheckboxes = '<div class="p-3 flex flex-wrap gap-2">'; 
+                    availableCategories.forEach(cat => {
+                        const isActive = currentCats.includes(cat);
+                        const activeClass = isActive ? 'active' : '';
+                        catCheckboxes += `<div onclick="toggleCategory(${idx}, '${cat}', this)" class="category-chip ${activeClass} select-none" style="margin:0 !important;">${cat}</div>`;
+                    });
+                    catCheckboxes += '</div>';
+                    
+                    const dropdownHtml = `
+                        <div class="relative mb-2">
+                            <label class="admin-label">Категории</label>
+                            <button id="cat-btn-${idx}" onclick="toggleCatDropdown('cat-drop-${idx}')" class="admin-input text-left flex justify-between items-center">
+                                <span>Выбрано: ${currentCats.length}</span>
+                                <span class="text-xs">▼</span>
+                            </button>
+                            <div id="cat-drop-${idx}" class="hidden absolute left-0 right-0 mt-1 p-2 z-50 overflow-y-auto max-h-[300px]" style="background: rgba(20, 20, 20, 0.8) !important; border: 1px solid rgba(255, 255, 255, 0.15) !important; border-radius: 10px !important; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
+                                ${catCheckboxes}
+                            </div>
+                        </div>
+                    `;
+                    
+                    if (isProd) {
+                        div.innerHTML = `
+                            <div class="flex justify-between items-start mb-2">
+                                 <span class="text-[10px] text-purple-400 font-bold">ТОВАР ${idx+1}</span>
+                                 <div class="flex gap-2">
+                                    ${upBtn} ${downBtn}
+                                    ${deleteButton}
+                                 </div>
+                            </div>
+                            <div class="flex gap-2 mb-2">${previews}</div>
+                            
+                            ${dropdownHtml}
+
+                            <input type="text" class="admin-input" value="${item.title||''}" placeholder="Название" onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].title=this.value">
+                            <div class="flex gap-2"><input type="text" class="admin-input" value="${item.price||''}" placeholder="Цена" onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].price=this.value"><input type="text" class="admin-input" value="${item.oldPrice||''}" placeholder="Старая цена" onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].oldPrice=this.value"></div>
+                            <textarea class="admin-textarea h-16" placeholder="Краткое описание" onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].description=this.value">${item.description||''}</textarea>
+                            <textarea class="admin-textarea h-24" placeholder="Полное описание" onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].fullDescription=this.value">${item.fullDescription||''}</textarea>
+                            
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="admin-label">Статус</label>
+                                    <select class="admin-select" onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].status=this.value">
+                                        <option value="" ${!item.status?'selected':''}>Обычный</option>
+                                        <option value="sold" ${item.status==='sold'?'selected':''}>Продано</option>
+                                        <option value="wait" ${item.status==='wait'?'selected':''}>Ожидается</option>
+                                        <option value="order" ${item.status==='order'?'selected':''}>Под заказ</option>
+                                        <option value="noseats" ${item.status==='noseats'?'selected':''}>Мест нет</option>
+                                        <option value="soon" ${item.status==='soon'?'selected':''}>Скоро старт</option>
+                                        <option value="open" ${item.status==='open'?'selected':''}>Запись открыта</option>
+                                        <option value="empty" ${item.status==='empty'?'selected':''}>Пусто</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="admin-label">Цвет плашки</label>
+                                    <select class="admin-select" onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].badgeColor=this.value">
+                                        <option value="" ${!item.badgeColor?'selected':''}>Стандарт</option>
+                                        <option value="red" ${item.badgeColor==='red'?'selected':''}>🔴 Красный</option>
+                                        <option value="green" ${item.badgeColor==='green'?'selected':''}>🟢 Зеленый</option>
+                                        <option value="blue" ${item.badgeColor==='blue'?'selected':''}>🔵 Синий</option>
+                                        <option value="white" ${item.badgeColor==='white'?'selected':''}>⚪ Белый</option>
+                                        <option value="yellow" ${item.badgeColor==='yellow'?'selected':''}>🟡 Желтый</option>
+                                        <option value="cyan" ${item.badgeColor==='cyan'?'selected':''}>💠 Голубой</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <input type="text" class="admin-input" value="${item.buttonText||'Купить'}" placeholder="Текст кнопки" onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].buttonText=this.value">
+                            <input type="text" class="admin-input" value="${item.buttonLink||''}" placeholder="TG Username" onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].buttonLink=this.value">
+                        `;
+                    } else { 
+                         div.innerHTML = `
+                            <div class="flex justify-between items-start mb-2">
+                                 <span class="text-[10px] font-bold">СЛАЙД ${idx+1}</span>
+                                 <div class="flex gap-2">
+                                    ${upBtn} ${downBtn}
+                                    ${deleteButton}
+                                 </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="admin-label mb-2">Фото</label>
+                                <div class="flex gap-2">${previews}</div>
+                            </div>
+
+                            <input type="text" class="admin-input" value="${item.title||''}" placeholder="Заголовок (необязательно)" onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].title=this.value">
+                            
+                            ${dropdownHtml}
+
+                            <textarea id="prompt-area-${idx}" class="admin-textarea" placeholder="Промпт..." onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].prompt=this.value">${item.prompt||''}</textarea>
+                         `;
+                    }
+                } else {
+                     div.innerHTML = `
+                        <div class="flex gap-2 items-center">
+                            <div class="flex flex-col gap-0 items-center justify-center mr-1">
+                                ${upBtn}
+                                ${downBtn}
+                            </div>
+                            <div class="flex-1">
+                                <input type="text" class="admin-input" value="${item.title}" onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].title=this.value"><input type="text" class="admin-input" value="${item.link}" onchange="tempAppData.mainMenu[${currentEditingIndex}].items[${idx}].link=this.value"><button onclick="tempAppData.mainMenu[${currentEditingIndex}].items.splice(${idx},1); renderSubListItems();" class="text-red-500 mt-2 text-xs">Удалить</button>
+                            </div>
+                        </div>
+                     `;
+                }
+                list.appendChild(div);
+            });
+        }
+
+        function moveSubListItem(index, direction) {
+            const list = tempAppData.mainMenu[currentEditingIndex].items;
+            const newIndex = index + direction;
+            if (newIndex >= 0 && newIndex < list.length) {
+                // EXPLICIT SWAP
+                const temp = list[index];
+                list[index] = list[newIndex];
+                list[newIndex] = temp;
+                
+                // Update order property immediately
+                list.forEach((item, i) => {
+                    if (item) item.order = i;
+                });
+                
+                renderSubListItems();
+            }
+        }
+
+        function moveMainMenuButton(index, direction) {
+            const list = tempAppData.mainMenu;
+            const newIndex = index + direction;
+            if (newIndex >= 0 && newIndex < list.length) {
+                // EXPLICIT SWAP
+                const temp = list[index];
+                list[index] = list[newIndex];
+                list[newIndex] = temp;
+                
+                // Update order index
+                list.forEach((btn, i) => btn.orderIndex = i);
+                
+                renderAdminMainMenu();
+            }
+        }
+
+        function addNewSubItem() {
+            const mode = tempAppData.mainMenu[currentEditingIndex].mode;
+            const newId = 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            const newItem = (mode === 'products' || mode === 'services')
+                ? { id: newId, title: 'Товар', price: '', status: '', images: [], categories: [], createdAt: new Date().toISOString() } 
+                : { id: newId, title: 'Новый', link: '', createdAt: new Date().toISOString() };
+            tempAppData.mainMenu[currentEditingIndex].items.unshift(newItem);
+            renderSubListItems();
+        }
+
+        function backToMainAdmin() {
+            document.getElementById('admin-content-sublist').classList.add('hidden');
+            document.getElementById('admin-content-moderation').classList.add('hidden');
+            document.getElementById('admin-content-main').classList.remove('hidden');
+            
+            const bar = document.getElementById('admin-sticky-bar');
+            bar.style.display = 'flex'; 
+            bar.innerHTML = `
+                <button onclick="openModeration()" class="admin-bar-btn accent">🛡️ Мод</button>
+                <button onclick="addNewMainMenuButton()" class="admin-bar-btn"><span>+</span> Блок</button>
+                <button onclick="saveAdminData()" id="btn-save-global" class="admin-bar-btn primary">💾 Сохранить</button>
+                <button onclick="closeAdmin()" class="admin-bar-btn close">✕</button>
+            `;
+            
+            renderAdminMainMenu();
+        }
+        function closeAdmin() { 
+            document.getElementById('admin-page').classList.replace('active-modal', 'hidden-bottom'); 
+            document.getElementById('admin-sticky-bar').style.display = 'none'; 
+        }
+
+        async function saveAdminData() {
+            if (tg.initDataUnsafe?.user?.id !== ADMIN_ID) return;
+            
+            const btnGlobal = document.getElementById('btn-save-global');
+            const btnSub = document.getElementById('btn-save-sub');
+            const btns = [btnGlobal, btnSub].filter(b => b);
+            
+            btns.forEach(b => { b.disabled = true; b.innerText = "СОХРАНЕНИЕ ДАННЫХ..."; b.style.background = "#555"; });
+
+            const dataToSave = JSON.parse(JSON.stringify(tempAppData));
+            dataToSave.headerTitle = document.getElementById('admin-header-title').value;
+            dataToSave.headerSubtitle = document.getElementById('admin-header-subtitle').value;
+
+            dataToSave.mainMenu.forEach((btn, idx) => {
+                btn.orderIndex = idx;
+            });
+
+            try {
+                // TASK 3 FIX: USE BATCH WRITE FOR SPEED
+                const batch = db.batch();
+
+                for (let btn of dataToSave.mainMenu) {
+                    if (!btn.id) btn.id = 'menu_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                    
+                    // TASK 3: ADD 'services' TO SAVE LOGIC
+                    if (['gallery', 'products', 'services'].includes(btn.mode)) {
+                        const items = btn.items || [];
+                        const colName = btn.mode === 'gallery' ? 'prompts' : (btn.mode === 'services' ? 'services' : 'products');
+
+                        // FIX: Iterate with index to save ORDER
+                        items.forEach((item, i) => {
+                            if (!item.id) item.id = 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                            
+                            item.parentId = btn.id;
+                            item.admin_id = ADMIN_ID; 
+                            item.order = i; // SAVE ACTUAL ORDER
+
+                            const ref = db.collection(colName).doc(item.id);
+                            batch.set(ref, item, { merge: true });
+                        });
+                        
+                        btn.items = []; 
+                    }
+                }
+
+                const secureData = {
+                    admin_id: ADMIN_ID, 
+                    ...dataToSave,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+
+                const configRef = db.collection('configs').doc(configDocId);
+                batch.set(configRef, secureData, { merge: true });
+
+                console.log("Committing batch write..."); 
+                await batch.commit();
+                
+                console.log("Успешно! ✨");
+                
+                btns.forEach(b => { 
+                    b.innerText = "Успешно сохранено! ✅"; 
+                    b.style.background = "linear-gradient(135deg, #39ff14, #00f2ff)";
+                });
+                
+                document.getElementById('save-status').style.opacity = '1';
+                setTimeout(() => { 
+                    document.getElementById('save-status').style.opacity = '0'; 
+                    btns.forEach(b => { b.disabled = false; b.innerText = "💾 Сохранить"; b.style.background = ""; });
+                }, 1500);
+
+            } catch (error) {
+                console.error("CRITICAL ERROR:", error);
+                tg.showAlert("ОШИБКА СОХРАНЕНИЯ:\n" + error.message);
+                btns.forEach(b => { b.disabled = false; b.innerText = "Ошибка! Повторить"; b.style.background = "#ff4d4d"; });
+            }
+        }
+
+        function openModeration() {
+            document.getElementById('admin-content-main').classList.add('hidden');
+            document.getElementById('admin-content-moderation').classList.remove('hidden');
+            
+            const bar = document.getElementById('admin-sticky-bar');
+            bar.style.display = 'flex';
+            bar.innerHTML = `
+                <button onclick="backToMainAdmin()" class="admin-bar-btn back">‹ Назад</button>
+                <button onclick="approveAll()" class="admin-bar-btn primary">✅ Одобрить всё</button>
+                <button onclick="closeAdmin()" class="admin-bar-btn close">✕</button>
+            `;
+            
+            loadModerationList();
+        }
+
+        function loadModerationList() {
+            const list = document.getElementById('moderation-list');
+            list.innerHTML = '<div class="spinner"></div>';
+            
+            db.collection('reviews').get().then(snap => {
+                list.innerHTML = '';
+                if(snap.empty) { list.innerHTML = '<div class="text-center text-gray-500 mt-4">Пусто</div>'; return; }
+                
+                const docs = [];
+                snap.forEach(d => { 
+                    let obj = d.data(); 
+                    if(obj.deleted) return; 
+                    obj.id = d.id; 
+                    docs.push(obj); 
+                });
+                
+                docs.sort((a,b) => new Date(b.date) - new Date(a.date));
+                
+                const pending = docs.filter(r => !r.approved);
+                const approved = docs.filter(r => r.approved);
+
+                const renderCard = (r, isPending) => {
+                    const div = document.createElement('div'); 
+                    div.className = "guide-item-admin";
+                    const statusText = isPending ? '<div class="text-xs text-yellow-400 mb-2">⏳ ЖДЕТ ПРОВЕРКИ</div>' : '<div class="text-xs text-green-400 mb-2">✅ ОПУБЛИКОВАНО</div>';
+                    const approveBtn = isPending ? `<button onclick="approveReview('${r.id}')" class="text-green-400 mt-2 mr-4 font-bold border border-green-500/50 px-3 py-1 rounded">Одобрить</button>` : '';
+                    
+                    const dateStr = r.date ? new Date(r.date).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+
+                    div.innerHTML = `
+                        ${statusText}
+                        <div class="absolute top-3 right-3 text-[9px] text-gray-500">${dateStr}</div>
+                        <div class="text-xs text-cyan-400 font-bold">${escapeHtml(r.name)} <span class="text-yellow-400 ml-2">${'★'.repeat(r.rating)}</span></div>
+                        <div class="text-white/80 my-2 text-sm bg-black/20 p-2 rounded">${escapeHtml(r.text)}</div>
+                        <div class="flex">
+                            ${approveBtn}
+                            <button onclick="deleteReview('${r.id}')" class="text-red-500 mt-2 font-bold border border-red-500/50 px-3 py-1 rounded">Удалить</button>
+                        </div>
+                    `;
+                    return div;
+                };
+
+                if (pending.length > 0) {
+                    const title = document.createElement('div');
+                    title.className = "text-yellow-400 text-xs font-bold mb-2 mt-4 uppercase tracking-widest";
+                    title.textContent = `Новые (${pending.length})`;
+                    list.appendChild(title);
+                    pending.forEach(r => list.appendChild(renderCard(r, true)));
+                }
+
+                if (approved.length > 0) {
+                    const title = document.createElement('div');
+                    title.className = "text-green-400 text-xs font-bold mb-2 mt-6 uppercase tracking-widest";
+                    title.textContent = `На сайте (${approved.length})`;
+                    list.appendChild(title);
+                    approved.forEach(r => list.appendChild(renderCard(r, false)));
+                }
+            });
+        }
+        function approveReview(id) { 
+            db.collection('reviews').doc(id).update({ 
+                approved: true, 
+                admin_id: ADMIN_ID 
+            }).then(() => { tg.showAlert("Одобрено"); loadModerationList(); }); 
+        }
+        
+        function approveAll() {
+             if(!confirm("Одобрить все ожидающие отзывы?")) return;
+             db.collection('reviews').where('approved', '==', false).get().then(snap => {
+                 if(snap.empty) return tg.showAlert("Нечего одобрять");
+                 const batch = db.batch();
+                 snap.forEach(doc => batch.update(doc.ref, { approved: true, admin_id: ADMIN_ID }));
+                 batch.commit().then(() => {
+                     tg.showAlert("Все отзывы одобрены!");
+                     loadModerationList();
+                 });
+             });
+        }
+        
+        // TASK 4: HARD DELETE
+        function deleteReview(id) { 
+            if(confirm('Удалить?')) {
+                db.collection('reviews').doc(id).delete()
+                .then(() => {
+                    tg.showAlert("Удалено навсегда");
+                    loadModerationList(); 
+                }); 
+            }
+        }
+
+    </script>
+</body>
+</html>
