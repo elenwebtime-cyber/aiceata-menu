@@ -819,29 +819,7 @@
             border-color: rgba(255, 77, 77, 0.3);
             color: #ff4d4d;
         }
-/* Мягкая защита: только отступы, чтобы не ломать приложение */
 
-#sub-page {
-    /* Отодвигаем контент, чтобы палец не попадал в зону свайпа */
-    padding-left: 25px !important; 
-    padding-right: 10px !important;
-    
-    /* Эти свойства иногда вызывают черный экран, если верстка сложная, 
-       поэтому используем только самые безопасные */
-    -webkit-overflow-scrolling: touch;
-}
-
-/* Сдвигаем кнопку назад, чтобы она была доступна */
-#sub-page header button {
-    left: 10px !important;
-    position: absolute;
-}
-
-/* Защищаем только внутренний контейнер с карточками */
-#sub-page-container {
-    margin-left: 5px !important;
-    touch-action: pan-y;
-}
     </style>
 </head>
 <body>
