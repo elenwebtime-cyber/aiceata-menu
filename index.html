@@ -1856,7 +1856,7 @@ const firebaseConfig = {
             ICON_LIBRARY.forEach(icon => {
                 const iBtn = document.createElement('button');
                 iBtn.className = `icon-picker-btn ${tempAppData.mainMenu[idx].iconId === icon.id ? 'active' : ''}`;
-                iBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${icon.svg}</svg>`;
+                iBtn.innerHTML = `<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${icon.svg}</svg>`;
                 iBtn.onclick = () => { tempAppData.mainMenu[idx].iconId = icon.id; renderAdminMainMenu(); };
                 grid.appendChild(iBtn);
             });
