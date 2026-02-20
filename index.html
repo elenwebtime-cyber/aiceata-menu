@@ -819,22 +819,7 @@
             border-color: rgba(255, 77, 77, 0.3);
             color: #ff4d4d;
         }
-/* --- ЗАЩИТА ОТ ВЫЛЕТОВ ДЛЯ РАЗДЕЛА ПРОМПТОВ --- */
-        #sub-page { 
-            overscroll-behavior-x: none !important; /* Блокирует жест "назад" */
-            touch-action: pan-y !important;           /* Разрешает только скролл вверх-вниз */
-        }
 
-        /* Защита для контейнера внутри, где лежат твои карточки */
-        #sub-page-container {
-            padding-left: 20px !important; /* Тот самый отступ-предохранитель */
-            padding-right: 20px !important;
-        }
-
-        /* Если у тебя внутри есть свайп категорий, защищаем и его */
-        .categories-container, .tabs-wrapper {
-            touch-action: pan-x !important; /* Тут разрешаем листать влево-вправо */
-        }
     </style>
 </head>
 <body>
