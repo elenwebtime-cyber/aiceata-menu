@@ -14,7 +14,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -2522,12 +2522,6 @@ function deleteGlobalCategory(cat) {
             }
         }
 
-        // Жесткая блокировка жеста "Назад" для страницы с промптами
-document.getElementById('sub-page').addEventListener('touchstart', function(e) {
-    if (e.pageX < 40) { // Если палец коснулся левой зоны (40 пикселей)
-        e.preventDefault(); // ГОВОРИМ "СТОП" системному действию
-    }
-}, {passive: false});
     </script>
 </body>
 </html>
