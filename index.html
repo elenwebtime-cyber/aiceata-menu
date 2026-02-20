@@ -1034,15 +1034,19 @@ const firebaseConfig = {
         const auth = firebase.auth();
         const db = firebase.firestore();
         
-        auth.signInAnonymously()
-          .then(() => {
-            console.log("Авторизация успешна!");
-            initAppLogic();
-          })
-          .catch((error) => {
-            console.error("Ошибка входа:", error);
-            alert("База данных недоступна. Проверь интернет!");
-          });
+       // Пробуем зайти анонимно
+auth.signInAnonymously()
+  .then(() => {
+    console.log("Авторизация прошла успешно!");
+    initAppLogic(); // Запускаем приложение
+  })
+  .catch((error) => {
+    console.error("Ошибка авторизации, но мы не сдаемся:", error);
+    // Если анонимность не сработала (как на Айфоне), 
+    // мы ВСЁ РАВНО пробуем запустить логику. 
+    // Если правила в Firebase открыты (allow if true), то всё сработает!
+    initAppLogic(); 
+  });
 
         const configDocId = "shop_client_name_v1"; 
         let appData = { headerTitle: "Навигация", headerSubtitle: "Твой проводник", mainMenu: [] };
