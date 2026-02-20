@@ -819,44 +819,6 @@
             border-color: rgba(255, 77, 77, 0.3);
             color: #ff4d4d;
         }
-
-        /* ПРИНУДИТЕЛЬНОЕ УМЕНЬШЕНИЕ ИКОНОК В АДМИНКЕ
-   Это слово !important после цифр — самое главное, 
-   оно заставляет браузер слушаться именно этих стилей.
-*/
-
-/* 1. Иконки в списках и в сетке выбора */
-#admin-main-menu-list svg, 
-#admin-sublist-items svg,
-.icon-grid svg,
-.icon-picker-btn svg {
-    width: 14px !important;  
-    height: 14px !important;
-    min-width: 14px !important;
-    max-width: 14px !important;
-}
-
-/* 2. Сами кнопочки в сетке (квадратики вокруг иконок) */
-.icon-picker-btn {
-    width: 26px !important; 
-    height: 26px !important;
-    padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    background: rgba(255,255,255,0.05) !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    border-radius: 4px !important;
-}
-
-/* 3. Компактная сетка, чтобы в ряд влезало много иконок */
-.icon-grid {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fill, minmax(26px, 1fr)) !important;
-    gap: 4px !important;
-    margin-top: 5px !important;
-    margin-bottom: 10px !important;
-}
         
     </style>
 </head>
