@@ -819,39 +819,50 @@
             border-color: rgba(255, 77, 77, 0.3);
             color: #ff4d4d;
         }
-/* ПРИНУДИТЕЛЬНОЕ УМЕНЬШЕНИЕ КНОПОК КАТЕГОРИЙ В АДМИНКЕ
-   (в разделах "Управление категориями" и при выборе категории для товара/промпта)
-*/
+/* ПРИНУДИТЕЛЬНОЕ УМЕНЬШЕНИЕ КНОПОК КАТЕГОРИЙ ТОЛЬКО В АДМИНКЕ */
 
-/* 1. Уменьшаем сами плашки (кнопочки) с названиями категорий (Все, Реализм, Фэнтези и т.д.) */
-#admin-categories-list button,
-[id*="category"] button,
-[class*="category"] button,
-.category-chip,
-.admin-category-btn {
-    padding: 2px 8px !important; /* Убираем лишние отступы по краям */
-    font-size: 11px !important;  /* Делаем текст маленьким */
+/* Применяем стили только если элементы находятся внутри админ-панели */
+#admin-panel #admin-categories-list button,
+#admin-panel #categories-list button,
+#admin-panel [id*="category"] button,
+#admin-panel [class*="category"] button,
+#admin-panel .category-chip,
+#admin-panel .admin-category-btn,
+#admin-panel .admin-list-item button {
+    padding: 2px 8px !important;
+    font-size: 11px !important;
     line-height: 14px !important;
-    min-height: 22px !important; /* Делаем саму кнопку тоненькой */
+    min-height: 22px !important;
     height: auto !important;
-    margin: 2px !important;      /* Прижимаем их друг к другу */
+    margin: 2px !important;
 }
 
-/* 2. Уменьшаем иконки "крестика" (удаления) внутри этих кнопочек, если они есть */
-[id*="category"] button svg,
-[class*="category"] button svg,
-.category-chip svg {
+/* Уменьшаем иконки удаления только в админке */
+#admin-panel [id*="category"] button svg,
+#admin-panel [class*="category"] button svg,
+#admin-panel #admin-categories-list svg,
+#admin-panel .category-chip svg {
     width: 10px !important;
     height: 10px !important;
-    margin-left: 4px !important;
+    min-width: 10px !important;
 }
 
-/* 3. Делаем сам блок-контейнер, где они лежат, плотнее */
-#admin-categories-list,
-.categories-container,
-[id*="category-container"] {
+/* Уплотняем контейнеры категорий в админке */
+#admin-panel #admin-categories-list,
+#admin-panel #categories-list,
+#admin-panel .categories-container,
+#admin-panel [id*="category-container"],
+#admin-panel [id*="categories-list"] {
+    display: flex !important;
+    flex-wrap: wrap !important;
     gap: 4px !important;
     margin-bottom: 8px !important;
+}
+
+/* Компактные строки в списках админки */
+#admin-panel .admin-list-item {
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
 }
         
     </style>
