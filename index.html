@@ -1022,31 +1022,27 @@
         ];
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDLtj9Y2ZiN-n_etkPvrYL3-btEzjAbLiA",
-  authDomain: "mypro-d4c18.firebaseapp.com",
-  projectId: "mypro-d4c18",
-  storageBucket: "mypro-d4c18.firebasestorage.app",
-  messagingSenderId: "256095439690",
-  appId: "1:256095439690:web:7f1419a66ef2ffe23e8fb3"
+  apiKey: "AIzaSyBGTCjQC-oMzuWn6K_G_0Tf1Vms-rutkP8",
+  authDomain: "aiceata-menu.firebaseapp.com",
+  projectId: "aiceata-menu",
+  storageBucket: "aiceata-menu.firebasestorage.app",
+  messagingSenderId: "39776555558",
+  appId: "1:39776555558:web:cbae72f632b7222e0e0ce7"
 };
         
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
         
-       // Пробуем зайти анонимно
-auth.signInAnonymously()
-  .then(() => {
-    console.log("Авторизация прошла успешно!");
-    initAppLogic(); // Запускаем приложение
-  })
-  .catch((error) => {
-    console.error("Ошибка авторизации, но мы не сдаемся:", error);
-    // Если анонимность не сработала (как на Айфоне), 
-    // мы ВСЁ РАВНО пробуем запустить логику. 
-    // Если правила в Firebase открыты (allow if true), то всё сработает!
-    initAppLogic(); 
-  });
+        auth.signInAnonymously()
+          .then(() => {
+            console.log("Авторизация успешна!");
+            initAppLogic();
+          })
+          .catch((error) => {
+            console.error("Ошибка входа:", error);
+            alert("База данных недоступна. Проверь интернет!");
+          });
 
         const configDocId = "shop_client_name_v1"; 
         let appData = { headerTitle: "Навигация", headerSubtitle: "Твой проводник", mainMenu: [] };
