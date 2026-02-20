@@ -850,6 +850,7 @@
     </div>
 
     <div id="sub-page" class="page hidden-right">
+        <div style="position:fixed; top:0; left:0; width:30px; height:100%; z-index:9999; touch-action:none;"></div>
         <header class="mb-6 mt-4 text-center relative">
              <button onclick="hideSubPage()" class="absolute left-0 top-1 text-2xl opacity-50 p-2">‹</button>
             <h1 id="sub-page-title" class="text-2xl font-bold title-gradient tracking-tight text-blue-400">Заголовок</h1>
@@ -2521,6 +2522,12 @@ function deleteGlobalCategory(cat) {
             }
         }
 
+        // Жесткая блокировка жеста "Назад" для страницы с промптами
+document.getElementById('sub-page').addEventListener('touchstart', function(e) {
+    if (e.pageX < 40) { // Если палец коснулся левой зоны (40 пикселей)
+        e.preventDefault(); // ГОВОРИМ "СТОП" системному действию
+    }
+}, {passive: false});
     </script>
 </body>
 </html>
