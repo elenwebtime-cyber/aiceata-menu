@@ -819,7 +819,34 @@
             border-color: rgba(255, 77, 77, 0.3);
             color: #ff4d4d;
         }
+/* Этот код нужно вставить в блок <style> перед закрывающим </style>.
+   Он подействует ТОЛЬКО на раздел с ID "sub-page" (твои промпты).
+*/
 
+#sub-page {
+    /* 1. Создаем физический барьер: отодвигаем контент от левого края.
+       Теперь палец будет ложиться на карточки вне зоны срабатывания жеста iOS */
+    padding-left: 40px !important; 
+    
+    /* 2. Запрещаем браузеру обрабатывать горизонтальные жесты на этой странице */
+    touch-action: pan-y !important;
+    overscroll-behavior-x: none !important;
+    
+    /* 3. Убеждаемся, что страница не "уплыла" и занимает всё место */
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Сдвигаем кнопку назад чуть правее, чтобы ты в неё попадала, не цепляя край */
+#sub-page header button {
+    left: 15px !important;
+    z-index: 100;
+}
+
+/* Если внутри есть контейнер для карточек, убедимся, что он тоже слушается */
+#sub-page-container {
+    touch-action: pan-y !important;
+}
     </style>
 </head>
 <body>
