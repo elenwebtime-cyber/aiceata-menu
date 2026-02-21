@@ -819,16 +819,17 @@
             border-color: rgba(255, 77, 77, 0.3);
             color: #ff4d4d;
         }
-/* ПРИНУДИТЕЛЬНОЕ УМЕНЬШЕНИЕ КНОПОК КАТЕГОРИЙ В АДМИНКЕ
-   (в разделах "Управление категориями" и при выборе категории для товара/промпта)
+        
+/* ПРИНУДИТЕЛЬНОЕ УМЕНЬШЕНИЕ КНОПОК КАТЕГОРИЙ ТОЛЬКО В АДМИНКЕ
+   (добавили #admin-panel, чтобы стили не ломали пользовательский интерфейс)
 */
 
-/* 1. Уменьшаем сами плашки (кнопочки) с названиями категорий (Все, Реализм, Фэнтези и т.д.) */
-#admin-categories-list button,
-[id*="category"] button,
-[class*="category"] button,
-.category-chip,
-.admin-category-btn {
+/* 1. Уменьшаем сами плашки (кнопочки) с названиями категорий только внутри админки */
+#admin-panel #admin-categories-list button,
+#admin-panel [id*="category"] button,
+#admin-panel [class*="category"] button,
+#admin-panel .category-chip,
+#admin-panel .admin-category-btn {
     padding: 2px 8px !important; /* Убираем лишние отступы по краям */
     font-size: 11px !important;  /* Делаем текст маленьким */
     line-height: 14px !important;
@@ -837,19 +838,19 @@
     margin: 2px !important;      /* Прижимаем их друг к другу */
 }
 
-/* 2. Уменьшаем иконки "крестика" (удаления) внутри этих кнопочек, если они есть */
-[id*="category"] button svg,
-[class*="category"] button svg,
-.category-chip svg {
+/* 2. Уменьшаем иконки "крестика" (удаления) внутри этих кнопочек в админке */
+#admin-panel [id*="category"] button svg,
+#admin-panel [class*="category"] button svg,
+#admin-panel .category-chip svg {
     width: 10px !important;
     height: 10px !important;
     margin-left: 4px !important;
 }
 
-/* 3. Делаем сам блок-контейнер, где они лежат, плотнее */
-#admin-categories-list,
-.categories-container,
-[id*="category-container"] {
+/* 3. Делаем сам блок-контейнер плотнее в админке */
+#admin-panel #admin-categories-list,
+#admin-panel .categories-container,
+#admin-panel [id*="category-container"] {
     gap: 4px !important;
     margin-bottom: 8px !important;
 }
