@@ -2458,6 +2458,13 @@
 
             dataToSave.mainMenu.forEach((btn, idx) => {
                 btn.orderIndex = idx;
+                
+                // Очищаем временный кэш перед сохранением, чтобы не превысить лимит базы в 1мб!
+                delete btn.originalItems;
+                delete btn.originalLastVisible;
+                delete btn.originalHasMore;
+                delete btn.lastVisible;
+                delete btn.hasMore;
             });
 
             try {
