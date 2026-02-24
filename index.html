@@ -571,15 +571,15 @@
         
         .like-btn {
             display: flex; align-items: center; gap: 4px;
-            background: rgba(0, 0, 0, 0.6); border-radius: 12px;
-            padding: 6px 10px; border: 1px solid rgba(255, 255, 255, 0.15);
-            color: white; font-size: 11px; font-weight: bold;
-            transition: all 0.2s; backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            background: transparent; border-radius: 12px;
+            padding: 6px; border: none;
+            color: white; font-size: 12px; font-weight: bold;
+            transition: all 0.2s;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
         }
         .like-btn:active { transform: scale(0.9); }
-        .like-btn.liked { color: var(--neon-pink); border-color: rgba(255, 0, 122, 0.4); background: rgba(255, 0, 122, 0.1); }
-        .like-btn svg { width: 14px; height: 14px; fill: transparent; stroke: currentColor; transition: fill 0.2s; }
+        .like-btn.liked { color: var(--neon-pink); background: transparent; border: none; }
+        .like-btn svg { width: 16px; height: 16px; fill: transparent; stroke: currentColor; transition: fill 0.2s; }
         .like-btn.liked svg { fill: var(--neon-pink); }
 
         .product-info { 
@@ -1340,11 +1340,13 @@
         // TASK 4 FIX: IMPROVED SWIPE LOGIC TO PREVENT SCROLL CONFLICTS
         let touchStartX = 0;
         let touchStartY = 0; // Capture Y to detect scrolling
+        let isEdgeSwipe = false;
         const subPage = document.getElementById('sub-page');
         
         subPage.addEventListener('touchstart', e => { 
             touchStartX = e.changedTouches[0].screenX; 
             touchStartY = e.changedTouches[0].screenY;
+            isEdgeSwipe = e.changedTouches[0].clientX <= 30;
         }, { passive: true });
         
         subPage.addEventListener('touchend', e => {
@@ -1352,8 +1354,8 @@
             const deltaY = e.changedTouches[0].screenY - touchStartY;
             
             // Only trigger back if horizontal swipe is significant AND vertical movement is small
-            // This prevents triggering "back" when scrolling down quickly
-            if (deltaX > 50 && Math.abs(deltaY) < 50) { 
+            // AND it started from the very left edge
+            if (isEdgeSwipe && deltaX > 50 && Math.abs(deltaY) < 50) { 
                 hideSubPage();
             }
         }, { passive: true });
@@ -1414,7 +1416,11 @@
                 const allItems = btnData.originalItems;
                 const savedCats = btnData.categoriesList || [];
                 const itemCats = allItems.flatMap(i => i.categories || (i.category ? [i.category] : []));
-                const categories = ['Все', ...new Set([...savedCats, ...itemCats].filter(Boolean))];
+                
+                const rawCats = Array.from(new Set([...savedCats, ...itemCats].filter(Boolean)));
+                const categories = ['Все'];
+                if (btnData.mode === 'gallery') categories.push('Избранное');
+                categories.push(...rawCats.filter(c => c !== 'Избранное' && c !== 'Все'));
                 
                 const gridContainer = document.createElement('div');
                 gridContainer.className = btnData.mode === 'gallery' 
@@ -1427,10 +1433,14 @@
                     categories.forEach(cat => {
                         const chip = document.createElement('div');
                         chip.className = `category-chip ${cat === 'Все' ? 'active' : ''}`;
-                        chip.textContent = cat;
+                        if (cat === 'Избранное') {
+                            chip.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px;fill:var(--neon-pink);display:inline-block;vertical-align:-2px" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
+                        } else {
+                            chip.textContent = cat;
+                        }
                         chip.onclick = async (e) => {
                             document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
-                            e.target.classList.add('active');
+                            e.currentTarget.classList.add('active');
                             
                             const loadBtn = document.getElementById('btn-load-more');
                             
@@ -1459,11 +1469,16 @@
                                     }
                                     
                                     let filtered = [];
+                                    const likedItems = JSON.parse(localStorage.getItem('liked_prompts') || '[]');
+
                                     snap.forEach(d => {
                                         let item = d.data();
                                         item.id = d.id;
                                         if (colName === 'services' && item.parentId && item.parentId !== btnData.id) return; 
-                                        if ((item.categories && item.categories.includes(cat)) || item.category === cat) {
+                                        
+                                        if (cat === 'Избранное') {
+                                            if (likedItems.includes(item.id)) filtered.push(item);
+                                        } else if ((item.categories && item.categories.includes(cat)) || item.category === cat) {
                                             filtered.push(item);
                                         }
                                     });
@@ -1472,7 +1487,7 @@
                                     
                                     gridContainer.innerHTML = '';
                                     if (filtered.length === 0) {
-                                        gridContainer.innerHTML = '<div class="col-span-full text-center text-gray-500 mt-10 text-xs w-full">В этой категории пока ничего нет</div>';
+                                        gridContainer.innerHTML = `<div class="col-span-full text-center text-gray-500 mt-10 text-xs w-full">${cat === 'Избранное' ? 'Вы еще ничего не добавили в избранное ❤️' : 'В этой категории пока ничего нет'}</div>`;
                                     } else {
                                         if (btnData.mode === 'gallery') renderGalleryItems(filtered, gridContainer, viewType);
                                         else renderProductItems(filtered, gridContainer, viewType);
