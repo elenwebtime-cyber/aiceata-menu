@@ -569,6 +569,19 @@
         .badge-wait { background: rgba(255, 140, 0, 0.3); color: orange; border-color: orange; }
         .badge-order { background: rgba(0, 242, 255, 0.2); color: var(--neon-color); border-color: var(--neon-color); }
         
+        .like-btn {
+            display: flex; align-items: center; gap: 4px;
+            background: rgba(0, 0, 0, 0.6); border-radius: 12px;
+            padding: 6px 10px; border: 1px solid rgba(255, 255, 255, 0.15);
+            color: white; font-size: 11px; font-weight: bold;
+            transition: all 0.2s; backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .like-btn:active { transform: scale(0.9); }
+        .like-btn.liked { color: var(--neon-pink); border-color: rgba(255, 0, 122, 0.4); background: rgba(255, 0, 122, 0.1); }
+        .like-btn svg { width: 14px; height: 14px; fill: transparent; stroke: currentColor; transition: fill 0.2s; }
+        .like-btn.liked svg { fill: var(--neon-pink); }
+
         .product-info { 
             padding: 12px; 
             flex-grow: 1;
@@ -896,7 +909,13 @@
 
     <div id="gallery-modal">
         <button onclick="closeGalleryModal()" class="absolute top-4 right-4 z-50 w-10 h-10 bg-black/50 rounded-full text-white flex items-center justify-center backdrop-blur-md">✕</button>
-        <div class="gallery-modal-img-container" id="modal-img-wrapper"></div>
+        <div class="gallery-modal-img-container" id="modal-img-wrapper">
+            <!-- КНОПКА ЛАЙКА, КОТОРАЯ ПРЯЧЕТСЯ ПОД ШТОРКУ (z-[5] ниже шторки с z-10) -->
+            <button id="modal-like-btn" class="like-btn absolute bottom-10 right-4 z-[5]" style="display: none;">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                <span class="like-count"></span>
+            </button>
+        </div>
         <div class="gallery-modal-content">
             <div class="modal-text-wrapper">
                 <div class="text-[10px] text-gray-500 uppercase tracking-widest mb-2 font-bold flex-shrink-0">PROMPT TEXT</div>
@@ -1523,12 +1542,19 @@
                     if (!item.description) item.description = item.prompt;
 
                     const div = document.createElement('div');
-                    div.onclick = () => openGalleryModal(imgUrl, item.prompt);
+                    div.onclick = () => openGalleryModal(item);
 
                     const imgTag = `<img src="${item.image || ''}" loading="lazy" style="aspect-ratio: 1/1; width: 100%; height: 100%; object-fit: cover;" class="${viewType === 'list' ? 'rounded-md' : 'transition-transform duration-500 group-hover:scale-110'} img-placeholder" onload="this.classList.remove('img-placeholder')" onerror="this.src='https://via.placeholder.com/300?text=Error'">`;
 
+                    const storageKey = 'liked_prompts';
+                    const likedItems = JSON.parse(localStorage.getItem(storageKey) || '[]');
+                    const isLiked = likedItems.includes(item.id);
+                    const likes = item.likes || 0;
+                    
+                    const heartSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>`;
+
                     if (viewType === 'list') {
-                        div.className = 'bg-black/40 p-3 rounded-lg border border-gray-800 flex flex-row gap-3 relative';
+                        div.className = 'bg-black/40 p-3 rounded-lg border border-gray-800 flex flex-row gap-3 relative cursor-pointer';
                         div.innerHTML = `
                             <div class="w-24 h-24 flex-shrink-0">
                                 ${imgTag}
@@ -1538,9 +1564,13 @@
                                     <div class="text-white font-bold text-sm leading-tight mb-1 text-left">${item.title || ''}</div>
                                     <div class="text-gray-400 text-[10px] leading-snug line-clamp-3 text-left">${item.description || ''}</div>
                                 </div>
-                                <div class="flex justify-end mt-2">
+                                <div class="flex justify-between items-center mt-2 w-full">
                                     <button class="btn-glass-card">
                                         ПОДРОБНЕЕ
+                                    </button>
+                                    <button class="like-btn like-btn-${item.id} ${isLiked ? 'liked' : ''}" onclick="toggleLike(event, '${item.id}')">
+                                        ${heartSvg}
+                                        <span class="like-count">${likes > 0 ? likes : ''}</span>
                                     </button>
                                 </div>
                             </div>
@@ -1551,9 +1581,13 @@
                             ${imgTag}
                             <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-3">
                                 <div class="text-white font-bold text-[10px] leading-tight mb-2 text-left line-clamp-2">${item.title || ''}</div>
-                                <div class="flex justify-start">
+                                <div class="flex justify-between items-end w-full">
                                     <button class="btn-glass-card">
                                         ПОДРОБНЕЕ
+                                    </button>
+                                    <button class="like-btn like-btn-${item.id} ${isLiked ? 'liked' : ''}" onclick="toggleLike(event, '${item.id}')">
+                                        ${heartSvg}
+                                        <span class="like-count">${likes > 0 ? likes : ''}</span>
                                     </button>
                                 </div>
                             </div>
@@ -1746,15 +1780,97 @@
             });
         }
 
-        function openGalleryModal(imgUrl, promptText) {
+        async function toggleLike(event, itemId) {
+            if (event) event.stopPropagation(); // Не дает модалке открыться, когда мы жмем на сердечко снаружи
+            tg.HapticFeedback.impactOccurred('light');
+
+            const storageKey = 'liked_prompts';
+            let likedItems = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            const isLiked = likedItems.includes(itemId);
+            const increment = isLiked ? -1 : 1;
+
+            const likeBtns = document.querySelectorAll(`.like-btn-${itemId}`);
+            likeBtns.forEach(btn => {
+                const countSpan = btn.querySelector('.like-count');
+                let currentLikes = parseInt(countSpan.innerText) || 0;
+                currentLikes += increment;
+                countSpan.innerText = currentLikes > 0 ? currentLikes : '';
+                
+                if (isLiked) {
+                    btn.classList.remove('liked');
+                } else {
+                    btn.classList.add('liked');
+                }
+            });
+
+            if (isLiked) {
+                likedItems = likedItems.filter(id => id !== itemId);
+            } else {
+                likedItems.push(itemId);
+            }
+            localStorage.setItem(storageKey, JSON.stringify(likedItems));
+
+            try {
+                await db.collection('prompts').doc(itemId).update({
+                    likes: firebase.firestore.FieldValue.increment(increment)
+                });
+                
+                if (appData && appData.mainMenu) {
+                    appData.mainMenu.forEach(btn => {
+                        if (btn.items) {
+                            const target = btn.items.find(i => i.id === itemId);
+                            if (target) target.likes = (target.likes || 0) + increment;
+                        }
+                        if (btn.originalItems) {
+                            const targetOrig = btn.originalItems.find(i => i.id === itemId);
+                            if (targetOrig) targetOrig.likes = (targetOrig.likes || 0) + increment;
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Ошибка лайка', e);
+            }
+        }
+
+        function openGalleryModal(item) {
             tg.HapticFeedback.impactOccurred('medium');
+            const imgUrl = (item.images && item.images.length > 0) ? item.images[0] : item.imageUrl;
+            const promptText = item.prompt;
             const modal = document.getElementById('gallery-modal');
             const wrapper = document.getElementById('modal-img-wrapper');
-            wrapper.innerHTML = '<div class="spinner"></div>';
+            
+            const likeBtn = document.getElementById('modal-like-btn');
+            likeBtn.style.display = 'none';
+            
+            Array.from(wrapper.children).forEach(child => {
+                if (child.id !== 'modal-like-btn') wrapper.removeChild(child);
+            });
+
+            const spinner = document.createElement('div');
+            spinner.className = 'spinner';
+            wrapper.appendChild(spinner);
+
             const img = document.createElement('img');
             img.src = imgUrl; img.className = "gallery-modal-img"; img.referrerPolicy = "no-referrer";
-            img.onload = () => { wrapper.innerHTML = ''; wrapper.appendChild(img); };
-            img.onerror = () => { wrapper.innerHTML = ''; img.src = 'https://placehold.co/400x600?text=Error'; wrapper.appendChild(img); };
+            img.onload = () => { 
+                if(wrapper.contains(spinner)) wrapper.removeChild(spinner);
+                wrapper.appendChild(img); 
+                
+                const storageKey = 'liked_prompts';
+                const likedItems = JSON.parse(localStorage.getItem(storageKey) || '[]');
+                const isLiked = likedItems.includes(item.id);
+                const likes = item.likes || 0;
+                
+                likeBtn.className = `like-btn like-btn-${item.id} absolute bottom-10 right-4 z-[5] ${isLiked ? 'liked' : ''}`;
+                likeBtn.onclick = (e) => toggleLike(e, item.id);
+                likeBtn.querySelector('.like-count').innerText = likes > 0 ? likes : '';
+                likeBtn.style.display = 'flex';
+            };
+            img.onerror = () => { 
+                if(wrapper.contains(spinner)) wrapper.removeChild(spinner);
+                img.src = 'https://placehold.co/400x600?text=Error'; 
+                wrapper.appendChild(img); 
+            };
             document.getElementById('modal-prompt-text').textContent = promptText || "Нет промпта";
             modal.classList.add('active-modal');
         }
