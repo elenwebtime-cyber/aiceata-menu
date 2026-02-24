@@ -1235,6 +1235,10 @@
                     btn.lastVisible = snap.docs[snap.docs.length - 1];
                     btn.hasMore = snap.docs.length === 10;
                     
+                    btn.originalItems = [...btn.items];
+                    btn.originalLastVisible = btn.lastVisible;
+                    btn.originalHasMore = btn.hasMore;
+                    
                     const container = document.querySelector(btn.viewType === 'list' ? '.list-view-container' : '.gallery-grid');
                     
                     if (btn.mode === 'gallery') {
@@ -1380,10 +1384,18 @@
             
             const viewType = btnData.viewType || 'grid';
 
-            // TASK 3: Added 'services' check
             if (btnData.mode === 'gallery' || btnData.mode === 'products' || btnData.mode === 'services') {
-                const allItems = btnData.items || [];
-                const categories = ['Все', ...new Set(allItems.flatMap(i => i.categories || (i.category ? [i.category] : [])).filter(Boolean))];
+                
+                if (!btnData.originalItems) {
+                    btnData.originalItems = [...(btnData.items || [])];
+                    btnData.originalHasMore = btnData.hasMore;
+                    btnData.originalLastVisible = btnData.lastVisible;
+                }
+
+                const allItems = btnData.originalItems;
+                const savedCats = btnData.categoriesList || [];
+                const itemCats = allItems.flatMap(i => i.categories || (i.category ? [i.category] : []));
+                const categories = ['Все', ...new Set([...savedCats, ...itemCats].filter(Boolean))];
                 
                 const gridContainer = document.createElement('div');
                 gridContainer.className = btnData.mode === 'gallery' 
@@ -1397,18 +1409,59 @@
                         const chip = document.createElement('div');
                         chip.className = `category-chip ${cat === 'Все' ? 'active' : ''}`;
                         chip.textContent = cat;
-                        chip.onclick = (e) => {
+                        chip.onclick = async (e) => {
                             document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('active'));
                             e.target.classList.add('active');
-                            const filtered = cat === 'Все' 
-                                ? allItems 
-                                : allItems.filter(i => (i.categories && i.categories.includes(cat)) || i.category === cat);
                             
-                            gridContainer.innerHTML = '';
-                            if (btnData.mode === 'gallery') {
-                                renderGalleryItems(filtered, gridContainer, viewType);
+                            const loadBtn = document.getElementById('btn-load-more');
+                            
+                            if (cat === 'Все') {
+                                gridContainer.innerHTML = '';
+                                if (btnData.mode === 'gallery') renderGalleryItems(btnData.originalItems, gridContainer, viewType);
+                                else renderProductItems(btnData.originalItems, gridContainer, viewType);
+                                
+                                if (btnData.originalHasMore && loadBtn) {
+                                    loadBtn.style.display = 'block';
+                                    loadBtn.onclick = () => loadMoreItems(btnData);
+                                } else if (loadBtn) {
+                                    loadBtn.style.display = 'none';
+                                }
                             } else {
-                                renderProductItems(filtered, gridContainer, viewType);
+                                if (loadBtn) loadBtn.style.display = 'none';
+                                gridContainer.innerHTML = '<div class="col-span-full text-center mt-10 w-full"><div class="spinner relative left-1/2 -ml-5"></div></div>';
+                                
+                                const colName = btnData.mode === 'gallery' ? 'prompts' : (btnData.mode === 'services' ? 'services' : 'products');
+                                try {
+                                    let snap;
+                                    if (colName === 'services') {
+                                        snap = await db.collection('services').get(); 
+                                    } else {
+                                        snap = await db.collection(colName).where('parentId', '==', btnData.id).get();
+                                    }
+                                    
+                                    let filtered = [];
+                                    snap.forEach(d => {
+                                        let item = d.data();
+                                        item.id = d.id;
+                                        if (colName === 'services' && item.parentId && item.parentId !== btnData.id) return; 
+                                        if ((item.categories && item.categories.includes(cat)) || item.category === cat) {
+                                            filtered.push(item);
+                                        }
+                                    });
+                                    
+                                    filtered.sort((a, b) => (a.order || 0) - (b.order || 0));
+                                    
+                                    gridContainer.innerHTML = '';
+                                    if (filtered.length === 0) {
+                                        gridContainer.innerHTML = '<div class="col-span-full text-center text-gray-500 mt-10 text-xs w-full">В этой категории пока ничего нет</div>';
+                                    } else {
+                                        if (btnData.mode === 'gallery') renderGalleryItems(filtered, gridContainer, viewType);
+                                        else renderProductItems(filtered, gridContainer, viewType);
+                                    }
+                                } catch (err) {
+                                    console.error("Filter error:", err);
+                                    gridContainer.innerHTML = '<div class="col-span-full text-center text-red-500 mt-10 text-xs w-full">Ошибка загрузки</div>';
+                                }
                             }
                             tg.HapticFeedback.selectionChanged();
                         };
@@ -1421,7 +1474,7 @@
                 if (btnData.mode === 'gallery') renderGalleryItems(allItems, gridContainer, viewType);
                 else renderProductItems(allItems, gridContainer, viewType);
                 
-                if (btnData.hasMore) {
+                if (btnData.originalHasMore) {
                     const loadBtn = document.createElement('button');
                     loadBtn.id = 'btn-load-more';
                     loadBtn.className = 'btn-glass-more';
@@ -1986,10 +2039,16 @@
                     tempAppData.mainMenu[idx].items = fullItems;
                     
                     availableCategories.clear();
+                    
+                    const savedCats = tempAppData.mainMenu[idx].categoriesList || [];
+                    savedCats.forEach(c => availableCategories.add(c));
+                    
                     fullItems.forEach(item => {
                         const cats = item.categories || (item.category ? [item.category] : []);
                         cats.forEach(c => { if(c) availableCategories.add(c.trim()); });
                     });
+                    
+                    tempAppData.mainMenu[idx].categoriesList = Array.from(availableCategories);
                     
                 } catch(e) {
                     console.error("Admin load error", e);
@@ -2100,12 +2159,18 @@
 
         function addNewGlobalCategory() {
             const input = document.getElementById('new-cat-input'); const val = input.value.trim();
-            if(val) { availableCategories.add(val); input.value = ''; renderSubListItems(); }
+            if(val) { 
+                availableCategories.add(val); 
+                tempAppData.mainMenu[currentEditingIndex].categoriesList = Array.from(availableCategories);
+                input.value = ''; 
+                renderSubListItems(); 
+            }
         }
         
-function deleteGlobalCategory(cat) {
+        function deleteGlobalCategory(cat) {
             if(confirm(`Удалить категорию "${cat}"?`)) {
                 availableCategories.delete(cat);
+                tempAppData.mainMenu[currentEditingIndex].categoriesList = Array.from(availableCategories);
                 tempAppData.mainMenu[currentEditingIndex].items.forEach(item => {
                     if (item.categories) {
                         item.categories = item.categories.filter(c => c !== cat);
